@@ -19,6 +19,7 @@ type Gesture = {
   bounds: Bounds;
   vertexIndex?: number;
   handle?: ResizeHandle;
+  changed?: boolean;
 };
 
 const COLORS = ["#ffb86b", "#75d6b5", "#8ab8ff", "#ca9cff", "#ff8f9d", "#f8d86b"];
@@ -101,13 +102,14 @@ export default function Home() {
       nextPoints=gesture.points.map(transform);
       nextDevices=gesture.devices.map(d=>d.roomId===gesture.roomId?{...d,...transform(d)}:d);
     }
+    gesture.changed = true;
     setProject(old=>({...old,rooms:old.rooms.map(r=>r.id===gesture.roomId?{...r,points:nextPoints}:r),devices:nextDevices}));
     setSaved(false);
   };
   const endGesture = (e: PointerEvent<SVGSVGElement>) => {
     const gesture=gestureRef.current; if(!gesture)return;
     if(svgRef.current?.hasPointerCapture(e.pointerId)) svgRef.current.releasePointerCapture(e.pointerId);
-    setHistory(h=>[...h.slice(-39),gesture.snapshot]); setFuture([]); gestureRef.current=null; setDragging(false);
+    if(gesture.changed){setHistory(h=>[...h.slice(-39),gesture.snapshot]);setFuture([])} gestureRef.current=null; setDragging(false);
   };
   const onCanvas = (e: PointerEvent<SVGSVGElement>) => {
     if (view !== "editor" || gestureRef.current) return;
