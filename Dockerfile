@@ -8,6 +8,9 @@ RUN npm ci
 
 FROM dependencies AS build
 COPY . .
+# GitHub's contents API does not preserve executable mode bits. The build
+# wrappers exec one another directly, so restore their permissions in-image.
+RUN chmod +x scripts/*.sh
 RUN npm run build
 
 FROM node:22-bookworm-slim AS runtime
