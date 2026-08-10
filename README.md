@@ -40,6 +40,34 @@ npm run dev
 
 Then open the local URL shown in the terminal.
 
+## Run with Docker
+
+Build the production image:
+
+```bash
+docker build -t interactive-floor-plan-studio .
+```
+
+Run it locally:
+
+```bash
+docker run --rm -p 3000:3000 --name floor-plan-studio interactive-floor-plan-studio
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+For a detached deployment that restarts automatically:
+
+```bash
+docker run -d \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  --name floor-plan-studio \
+  interactive-floor-plan-studio
+```
+
+The image uses a multi-stage Node.js 22 build, runs as the unprivileged `node` user, and includes a health check. The app stores projects in each visitor's browser, so no persistent Docker volume is required.
+
 ## Validation
 
 ```bash
