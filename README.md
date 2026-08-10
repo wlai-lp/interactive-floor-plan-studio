@@ -77,6 +77,16 @@ npm run lint
 npm run build
 ```
 
+## Versions and Conventional Commits
+
+Pull-request titles must use Conventional Commits, for example `feat: add room groups` or `fix(editor): preserve device position`. When a PR is merged into `main`, GitHub Actions advances the version, updates `package.json` and `package-lock.json`, creates a matching `vX.Y.Z` tag and GitHub release, and commits the version metadata back to `main`.
+
+- `feat` increments the minor version.
+- A breaking `!` increments the major version.
+- All other accepted types (`fix`, `perf`, `docs`, `refactor`, `test`, `build`, `ci`, `chore`, `style`, and `revert`) increment the patch version.
+
+The sidebar reads the package version in production. Local development displays `v0.0.0-dev`. Docker can override the displayed build version with `docker build --build-arg APP_VERSION=1.2.3 ...`.
+
 ## Roadmap
 
 - Edge insertion and vertex deletion
