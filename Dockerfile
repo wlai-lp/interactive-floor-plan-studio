@@ -7,6 +7,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM dependencies AS build
+ARG APP_VERSION
+ENV NEXT_PUBLIC_APP_VERSION=${APP_VERSION}
 COPY . .
 # GitHub's contents API does not preserve executable mode bits. The build
 # wrappers exec one another directly, so restore their permissions in-image.
