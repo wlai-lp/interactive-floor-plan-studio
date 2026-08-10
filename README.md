@@ -11,6 +11,8 @@ Automatic bitmap tracing produces anonymous paths. Floor Plan Studio creates use
 - Local image upload with no server processing
 - Room polygon tracing in original image coordinates
 - Room selection, naming, colors, and simulated state
+- Drag-to-move, eight-handle resize, and individual vertex adjustment
+- Pointer-based mouse, pen, and touch editing with gesture-level undo/redo
 - Device markers
 - Undo and redo
 - Browser-local project persistence
@@ -77,7 +79,7 @@ npm run build
 
 ## Roadmap
 
-- Vertex dragging and edge insertion
+- Edge insertion and vertex deletion
 - Pan and zoom
 - HTML playground bundle export
 - Home Assistant entity mapping
