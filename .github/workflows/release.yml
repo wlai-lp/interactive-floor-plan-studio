@@ -1,0 +1,63 @@
+name: Release merged pull request
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Calculate next version
+        id: version
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          CURRENT_VERSION="$(node -p 'require("./package.json").version')"
+          NEXT_VERSION="$(node scripts/versioning.mjs "$PR_TITLE" "$CURRENT_VERSION")"
+          echo "current=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "next=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Update package version
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.next }}
+        run: npm version "$NEXT_VERSION" --no-git-tag-version
+
+      - name: Commit and tag release
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.next }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(release): v$NEXT_VERSION [skip ci]"
+          git tag -a "v$NEXT_VERSION" -m "v$NEXT_VERSION"
+          git push origin main
+          git push origin "v$NEXT_VERSION"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEXT_VERSION: ${{ steps.version.outputs.next }}
+        run: gh release create "v$NEXT_VERSION" --generate-notes --title "v$NEXT_VERSION"
