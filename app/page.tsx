@@ -1,6 +1,8 @@
 "use client";
 
 import { ChangeEvent, PointerEvent, useMemo, useRef, useState } from "react";
+import packageJson from "../package.json";
+import { toggleLightForDevice } from "./project-state.mjs";
 
 type Point = { x: number; y: number };
 type Room = { id: string; name: string; points: Point[]; color: string; light: boolean; temperature: number };
@@ -24,6 +26,8 @@ type Gesture = {
 
 const COLORS = ["#ffb86b", "#75d6b5", "#8ab8ff", "#ca9cff", "#ff8f9d", "#f8d86b"];
 const HANDLES: ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ||
+  (process.env.NODE_ENV === "development" ? "0.0.0-dev" : packageJson.version);
 const DEMO: Project = {
   width: 1000, height: 620, image: "",
   rooms: [
@@ -135,6 +139,11 @@ export default function Home() {
   const download = (name:string, contents:string, type="application/json") => { const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([contents],{type})); a.download=name; a.click(); URL.revokeObjectURL(a.href); };
   const exportSvg = () => download("floor-plan.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${project.width} ${project.height}"><g id="rooms">${project.rooms.map(r=>`<polygon id="${r.id}" data-room="${r.id}" points="${pointsAttr(r.points)}" fill="${r.color}" fill-opacity=".22" stroke="${r.color}"/>`).join("")}</g></svg>`, "image/svg+xml");
   const save = () => { localStorage.setItem("floor-plan-studio-project",JSON.stringify(project)); setSaved(true); setTimeout(()=>setSaved(false),1800); };
+  const activateDevice = (device: Device) => {
+    setSelected(device.roomId);
+    if (view !== "playground" || device.type !== "light") return;
+    updateProject(p=>toggleLightForDevice(p, device));
+  };
 
   return <main className="app-shell">
     <header className="topbar">
@@ -149,6 +158,7 @@ export default function Home() {
         <button className={tool==="draw"?"active":""} onClick={()=>setTool("draw")} title="Draw room"><span>⬡</span>Room</button>
         <button className={tool==="device"?"active":""} onClick={()=>setTool("device")} disabled={!current} title="Place device"><span>⌁</span>Device</button>
         <div className="rail-rule"/><button onClick={undo} disabled={!history.length}><span>↶</span>Undo</button><button onClick={redo} disabled={!future.length}><span>↷</span>Redo</button>
+        <span className="app-version" title={`Interactive Floor Plan Studio v${APP_VERSION}`}>v{APP_VERSION}</span>
       </aside>
 
       <section className="stage-column">
@@ -168,7 +178,7 @@ export default function Home() {
               {current.points.map((p,i)=><circle key={i} className="vertex-handle" cx={p.x} cy={p.y} r="8" onPointerDown={e=>beginGesture(e,current,"vertex",{vertexIndex:i})}/>) }
             </g>}
             {draft.length>0&&<><polyline className="draft-line" points={pointsAttr(draft)}/>{draft.map((p,i)=><circle className="draft-point" key={i} cx={p.x} cy={p.y} r="7"/> )}</>}
-            {project.devices.map(d=><g key={d.id} className="device-dot" transform={`translate(${d.x} ${d.y})`} onPointerDown={e=>{e.stopPropagation();setSelected(d.roomId)}}><circle r="20"/><text y="6">{d.type==="light"?"☼":"°"}</text></g>)}
+            {project.devices.map(d=>{const room=project.rooms.find(r=>r.id===d.roomId);const interactive=view==="playground"&&d.type==="light";return <g key={d.id} className={`device-dot ${interactive?"interactive":""} ${room?.light?"on":"off"}`} transform={`translate(${d.x} ${d.y})`} role={interactive?"button":undefined} tabIndex={interactive?0:undefined} aria-label={interactive?`${room?.name||"Room"} light: ${room?.light?"on":"off"}`:undefined} aria-pressed={interactive?Boolean(room?.light):undefined} onPointerDown={e=>{e.stopPropagation();e.preventDefault();activateDevice(d)}} onKeyDown={e=>{if(interactive&&(e.key==="Enter"||e.key===" ")){e.preventDefault();e.stopPropagation();activateDevice(d)}}}><circle className="device-hit-area" r="24"/><circle className="device-face" r="20"/><text y="6">{d.type==="light"?"☼":"°"}</text></g>})}
           </svg>
           {tool==="draw"&&<div className="hint">Click around a room · Double-click to finish · {draft.length} points</div>}
           {tool==="select"&&current&&view==="editor"&&!dragging&&<div className="hint edit-hint">Drag room to move · Drag squares to resize · Drag circles to adjust corners</div>}
