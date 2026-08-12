@@ -9,3 +9,6 @@
 /* Playground devices and build version */
 .app-version{margin-top:auto;text-align:center;color:var(--muted);font-size:9px;letter-spacing:.04em;padding:8px 0}.device-dot{outline:none}.device-dot.interactive{cursor:pointer}.device-dot>*{pointer-events:none}.device-dot .device-hit-area{fill:transparent;stroke:none;filter:none;pointer-events:all}.device-dot .device-face{fill:#183e36;stroke:white;stroke-width:3;filter:drop-shadow(0 3px 6px #0005)}.device-dot.on .device-face{fill:#d97722;filter:drop-shadow(0 0 10px #f4a340)}.device-dot.interactive:focus-visible .device-face{stroke:#71d8b5;stroke-width:6}.device-dot text{cursor:inherit}
 @media(max-width:600px){.app-version{margin:0 0 0 auto;align-self:center;padding:4px}}
+
+/* Editable project identity and device placement */
+.project-name{display:block;margin:3px 0 0;padding:2px 5px;width:min(420px,50vw);border:1px solid transparent;border-radius:6px;background:transparent;color:var(--ink);font:700 18px/1.25 Arial,Helvetica,sans-serif}.project-name:hover{border-color:var(--line);background:#fff}.project-name:focus{outline:2px solid #75d6b5;outline-offset:1px;background:#fff}.device-dot.draggable{cursor:grab}.device-dot.draggable .device-face{stroke:#d8efe7}.canvas-wrap.dragging .device-dot.draggable{cursor:grabbing}
