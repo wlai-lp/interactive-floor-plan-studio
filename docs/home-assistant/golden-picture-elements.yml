@@ -1,0 +1,33 @@
+type: picture-elements
+image: data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAwIDUwMCI+PC9zdmc+
+elements:
+  - type: conditional
+    conditions:
+      - entity: light.alarm_light
+        state: "on"
+    elements:
+      - type: image
+        image: data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAwIDUwMCI+PHJlY3Qgd2lkdGg9IjEwMDAiIGhlaWdodD0iNTAwIiBmaWxsPSIjZmZkMjdhIiBmaWxsLW9wYWNpdHk9Ii41NSIvPjwvc3ZnPg==
+        style:
+          left: 50%
+          top: 50%
+          width: 100%
+          opacity: 0.55
+          filter: blur(3px)
+  - type: state-icon
+    entity: light.alarm_light
+    style:
+      left: 25%
+      top: 25%
+      --mdc-icon-size: 24px
+    tap_action:
+      action: toggle
+    hold_action:
+      action: more-info
+  - type: state-label
+    entity: light.alarm_light
+    style:
+      left: 25%
+      top: 29%
+      color: "#fff"
+      font-size: 12px
