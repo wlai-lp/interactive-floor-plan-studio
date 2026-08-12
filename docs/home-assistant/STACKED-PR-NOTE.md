@@ -1,1 +1,0 @@
-Temporary development note: overlay implementation is stacked on the #14 generator branch until the generator PR is merged. The overlay work should be isolated to its own branch/PR before merge.
