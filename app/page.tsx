@@ -61,6 +61,7 @@ export default function Home() {
     try { return normalizeProject(JSON.parse(raw)); } catch { return DEMO; }
   });
   const [selected, setSelected] = useState("living");
+  const [selectedDevice, setSelectedDevice] = useState("");
   const [tool, setTool] = useState<"select"|"draw"|"device">("select");
   const [draft, setDraft] = useState<Point[]>([]);
   const [view, setView] = useState<"editor"|"playground">("editor");
@@ -72,6 +73,7 @@ export default function Home() {
   const fileRef = useRef<HTMLInputElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const current = project.rooms.find(r => r.id === selected);
+  const currentDevice = project.devices.find(d => d.id === selectedDevice);
   const currentBounds = current ? roomBounds(current.points) : null;
 
   const stats = useMemo(() => ({rooms: project.rooms.length, devices: project.devices.length}), [project]);
@@ -84,12 +86,12 @@ export default function Home() {
   };
   const beginGesture = (e: PointerEvent<SVGElement>, room: Room, kind: Gesture["kind"], extras: Partial<Gesture> = {}) => {
     if (view !== "editor" || tool !== "select") return;
-    e.stopPropagation(); e.preventDefault(); setSelected(room.id); setDragging(true);
+    e.stopPropagation(); e.preventDefault(); setSelected(room.id); setSelectedDevice(""); setDragging(true);
     svgRef.current?.setPointerCapture(e.pointerId);
     gestureRef.current = {kind,roomId:room.id,start:pointer(e),snapshot:snapshot(),points:clone(room.points),devices:clone(project.devices),bounds:roomBounds(room.points),...extras};
   };
   const beginDeviceGesture = (e: PointerEvent<SVGGElement>, device: Device) => {
-    e.stopPropagation(); e.preventDefault(); setSelected(device.roomId);
+    e.stopPropagation(); e.preventDefault(); setSelected(device.roomId); setSelectedDevice(view === "editor" ? device.id : "");
     if (view !== "editor" || tool !== "select") { activateDevice(device); return; }
     setDragging(true); svgRef.current?.setPointerCapture(e.pointerId);
     gestureRef.current = {kind:"device",deviceId:device.id,start:pointer(e),snapshot:snapshot(),points:[],devices:clone(project.devices),bounds:{minX:0,minY:0,maxX:project.width,maxY:project.height,width:project.width,height:project.height}};
@@ -128,6 +130,7 @@ export default function Home() {
   const onCanvas = (e: PointerEvent<SVGSVGElement>) => {
     if (view !== "editor" || gestureRef.current) return;
     const p = pointer(e);
+    if (tool === "select") { setSelected(""); setSelectedDevice(""); }
     if (tool === "draw") setDraft(d => [...d, p]);
     if (tool === "device" && current) {
       updateProject(old => ({...old, devices:[...old.devices,{id:`device-${Date.now()}`,roomId:current.id,x:p.x,y:p.y,type:"light"}]})); setTool("select");
@@ -137,11 +140,11 @@ export default function Home() {
     if (draft.length < 3) return;
     const name = `Room ${project.rooms.length + 1}`; const id = slug(`${name}-${Date.now()}`);
     updateProject(old => ({...old,rooms:[...old.rooms,{id,name,points:draft,color:COLORS[old.rooms.length%COLORS.length],light:false,temperature:70}]}));
-    setSelected(id); setDraft([]); setTool("select");
+    setSelected(id); setSelectedDevice(""); setDraft([]); setTool("select");
   };
   const upload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader();
-    reader.onload = () => { const img = new Image(); img.onload = () => { remember(); setProject(p=>({...p,width:img.naturalWidth,height:img.naturalHeight,image:String(reader.result),rooms:[],devices:[]})); setSelected(""); }; img.src=String(reader.result); };
+    reader.onload = () => { const img = new Image(); img.onload = () => { remember(); setProject(p=>({...p,width:img.naturalWidth,height:img.naturalHeight,image:String(reader.result),rooms:[],devices:[]})); setSelected(""); setSelectedDevice(""); }; img.src=String(reader.result); };
     reader.readAsDataURL(file); e.target.value="";
   };
   const undo = () => { const prev=history.at(-1); if(!prev)return; setFuture(f=>[snapshot(),...f]); setProject(p=>({...p,...clone(prev)})); setHistory(h=>h.slice(0,-1)); };
@@ -154,10 +157,34 @@ export default function Home() {
     if (view !== "playground" || device.type !== "light") return;
     updateProject(p=>toggleLightForDevice(p, device));
   };
+  const deleteSelection = () => {
+    if (view !== "editor" || tool !== "select") return;
+    if (currentDevice) {
+      updateProject(p=>({...p,devices:p.devices.filter(d=>d.id!==currentDevice.id)}));
+      setSelectedDevice("");
+      return;
+    }
+    if (current) {
+      updateProject(p=>({...p,rooms:p.rooms.filter(r=>r.id!==current.id),devices:p.devices.filter(d=>d.roomId!==current.id)}));
+      setSelected("");
+    }
+  };
   useEffect(() => {
     const timer = window.setTimeout(() => { localStorage.setItem("floor-plan-studio-project",JSON.stringify(project)); setSaved(true); }, 250);
     return () => window.clearTimeout(timer);
   }, [project]);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      if (target?.matches("input, textarea, select, [contenteditable=true]")) return;
+      if (view !== "editor" || tool !== "select" || (!current && !currentDevice)) return;
+      event.preventDefault();
+      deleteSelection();
+    };
+    window.addEventListener("keydown",onKeyDown);
+    return () => window.removeEventListener("keydown",onKeyDown);
+  });
 
   return <main className="app-shell">
     <header className="topbar">
@@ -182,17 +209,17 @@ export default function Home() {
             <defs><pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#dce4e2" strokeWidth="1"/></pattern></defs>
             <rect width="100%" height="100%" fill="#f5f7f6"/>{!project.image&&<rect width="100%" height="100%" fill="url(#grid)"/>}
             {project.image&&<image href={project.image} width={project.width} height={project.height} preserveAspectRatio="xMidYMid meet"/>}
-            {project.rooms.map(room=><g key={room.id} className={`room-shape ${selected===room.id?"selected":""} ${room.light?"lit":""}`} onPointerDown={e=>view==="editor"&&tool==="select"?beginGesture(e,room,"move"):(e.stopPropagation(),setSelected(room.id))}>
+            {project.rooms.map(room=><g key={room.id} className={`room-shape ${selected===room.id&&!selectedDevice?"selected":""} ${room.light?"lit":""}`} onPointerDown={e=>view==="editor"&&tool==="select"?beginGesture(e,room,"move"):(e.stopPropagation(),setSelected(room.id),setSelectedDevice(""))}>
               <polygon points={pointsAttr(room.points)} style={{"--room":room.color} as React.CSSProperties}/>
               <text x={room.points.reduce((a,p)=>a+p.x,0)/room.points.length} y={room.points.reduce((a,p)=>a+p.y,0)/room.points.length}>{room.name}</text>
             </g>)}
-            {view==="editor"&&tool==="select"&&current&&currentBounds&&<g className="shape-controls" aria-label={`Edit ${current.name}`}>
+            {view==="editor"&&tool==="select"&&current&&!currentDevice&&currentBounds&&<g className="shape-controls" aria-label={`Edit ${current.name}`}>
               <rect className="selection-box" x={currentBounds.minX} y={currentBounds.minY} width={currentBounds.width} height={currentBounds.height}/>
               {HANDLES.map(h=>{const p=handlePoint(currentBounds,h);return <rect key={h} className={`resize-handle handle-${h}`} x={p.x-7} y={p.y-7} width="14" height="14" rx="2" onPointerDown={e=>beginGesture(e,current,"resize",{handle:h})}/>})}
               {current.points.map((p,i)=><circle key={i} className="vertex-handle" cx={p.x} cy={p.y} r="8" onPointerDown={e=>beginGesture(e,current,"vertex",{vertexIndex:i})}/>) }
             </g>}
             {draft.length>0&&<><polyline className="draft-line" points={pointsAttr(draft)}/>{draft.map((p,i)=><circle className="draft-point" key={i} cx={p.x} cy={p.y} r="7"/> )}</>}
-            {project.devices.map(d=>{const room=project.rooms.find(r=>r.id===d.roomId);const interactive=view==="playground"&&d.type==="light";const draggable=view==="editor"&&tool==="select";return <g key={d.id} className={`device-dot ${interactive?"interactive":""} ${draggable?"draggable":""} ${room?.light?"on":"off"}`} transform={`translate(${d.x} ${d.y})`} role={interactive?"button":undefined} tabIndex={interactive?0:undefined} aria-label={interactive?`${room?.name||"Room"} light: ${room?.light?"on":"off"}`:undefined} aria-pressed={interactive?Boolean(room?.light):undefined} onPointerDown={e=>beginDeviceGesture(e,d)} onKeyDown={e=>{if(interactive&&(e.key==="Enter"||e.key===" ")){e.preventDefault();e.stopPropagation();activateDevice(d)}}}><circle className="device-hit-area" r="24"/><circle className="device-face" r="20"/><text y="6">{d.type==="light"?"☼":"°"}</text></g>})}
+            {project.devices.map(d=>{const room=project.rooms.find(r=>r.id===d.roomId);const interactive=view==="playground"&&d.type==="light";const draggable=view==="editor"&&tool==="select";return <g key={d.id} className={`device-dot ${interactive?"interactive":""} ${draggable?"draggable":""} ${selectedDevice===d.id?"selected":""} ${room?.light?"on":"off"}`} transform={`translate(${d.x} ${d.y})`} role={interactive?"button":undefined} tabIndex={interactive?0:undefined} aria-label={interactive?`${room?.name||"Room"} light: ${room?.light?"on":"off"}`:undefined} aria-pressed={interactive?Boolean(room?.light):undefined} onPointerDown={e=>beginDeviceGesture(e,d)} onKeyDown={e=>{if(interactive&&(e.key==="Enter"||e.key===" ")){e.preventDefault();e.stopPropagation();activateDevice(d)}}}><circle className="device-hit-area" r="24"/><circle className="device-face" r="20"/>{d.type==="light"?<g className="device-icon device-icon-light" aria-hidden="true"><circle r="4"/><path d="M0-12v4M0 8v4M-12 0h4M8 0h4M-8.5-8.5l2.9 2.9M5.6 5.6l2.9 2.9M8.5-8.5L5.6-5.6M-5.6 5.6l-2.9 2.9"/></g>:<g className="device-icon device-icon-sensor" aria-hidden="true"><path d="M-3-10a3 3 0 0 1 6 0V3.2a7 7 0 1 1-6 0V-10Z"/><path d="M0-5V7"/><circle cy="8" r="2.5"/></g>}</g>})}
           </svg>
           {tool==="draw"&&<div className="hint">Click around a room · Double-click to finish · {draft.length} points</div>}
           {tool==="select"&&current&&view==="editor"&&!dragging&&<div className="hint edit-hint">Drag rooms or devices · Use handles to resize and adjust corners</div>}
@@ -202,8 +229,14 @@ export default function Home() {
       </section>
 
       <aside className="inspector">
-        <div className="inspector-title"><div><span className="eyebrow">INSPECTOR</span><h2>{current?.name || "Nothing selected"}</h2></div><span className="color-dot" style={{background:current?.color||"#ccd5d2"}}/></div>
-        {current ? <>
+        <div className="inspector-title"><div><span className="eyebrow">INSPECTOR</span><h2>{currentDevice ? `${currentDevice.type === "light" ? "Light" : "Sensor"} device` : current?.name || "Nothing selected"}</h2></div><span className="color-dot" style={{background:current?.color||"#ccd5d2"}}/></div>
+        {currentDevice ? <>
+          <div className="edit-callout"><b>Edit device</b><p>Drag the device to reposition it. Press Delete or Backspace to remove it.</p></div>
+          <div className="field"><span>Device ID</span><code>{currentDevice.id}</code></div>
+          <div className="field"><span>Type</span><b>{currentDevice.type}</b></div>
+          <div className="field"><span>Position</span><b>{currentDevice.x}, {currentDevice.y}</b></div>
+          <button className="danger" onClick={deleteSelection}>Delete device</button>
+        </> : current ? <>
           <div className="edit-callout"><b>Edit shape</b><p>Drag the room to move it. Use square handles to resize or round handles to adjust individual vertices.</p></div>
           <label>Room name<input value={current.name} onChange={e=>setProject(p=>({...p,rooms:p.rooms.map(r=>r.id===current.id?{...r,name:e.target.value}:r)}))} onBlur={remember}/></label>
           <div className="field"><span>Room ID</span><code>{current.id}</code></div>
@@ -212,7 +245,7 @@ export default function Home() {
           <button className={`toggle-row ${current.light?"on":""}`} onClick={()=>updateProject(p=>({...p,rooms:p.rooms.map(r=>r.id===current.id?{...r,light:!r.light}:r)}))}><span><i>☼</i> Light</span><b>{current.light?"ON":"OFF"}</b></button>
           <label>Temperature <span className="range-value">{current.temperature}°F</span><input type="range" min="55" max="85" value={current.temperature} onChange={e=>setProject(p=>({...p,rooms:p.rooms.map(r=>r.id===current.id?{...r,temperature:+e.target.value}:r)}))}/></label>
           <div className="section-title">ROOM COLOR</div><div className="swatches">{COLORS.map(c=><button key={c} className={current.color===c?"active":""} style={{background:c}} onClick={()=>updateProject(p=>({...p,rooms:p.rooms.map(r=>r.id===current.id?{...r,color:c}:r)}))}/>)}</div>
-          <button className="danger" onClick={()=>{updateProject(p=>({...p,rooms:p.rooms.filter(r=>r.id!==current.id),devices:p.devices.filter(d=>d.roomId!==current.id)}));setSelected("")}}>Delete room</button>
+          <button className="danger" onClick={deleteSelection}>Delete room and its devices</button>
         </>:<div className="inspector-empty">Select a room to edit its shape, label, status, color, and devices.</div>}
         <div className="privacy-card"><b>Built for privacy</b><p>Images and projects stay in your browser. Nothing is uploaded for processing.</p></div>
       </aside>

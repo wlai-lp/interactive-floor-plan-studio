@@ -45,6 +45,9 @@ test("device SVG exposes one accessible full-icon interaction target", async () 
   assert.match(page, /e\.key==="Enter"\|\|e\.key===" "/);
   assert.match(styles, /\.device-dot\.interactive\{cursor:pointer\}/);
   assert.match(styles, /\.device-dot \.device-hit-area\{[^}]*pointer-events:all/);
+  assert.match(page, /className="device-icon device-icon-light"/);
+  assert.match(page, /className="device-icon device-icon-sensor"/);
+  assert.doesNotMatch(page, /<text y="6">/);
 });
 
 test("project identity is editable, persisted, and exported", async () => {
@@ -65,4 +68,19 @@ test("editor device gesture is separate from playground activation", async () =>
   assert.match(page, /x:clamp\(d\.x\+dx,0,project\.width\)/);
   assert.match(page, /if\(gesture\.changed\)\{setHistory/);
   assert.match(styles, /\.device-dot\.draggable\{cursor:grab\}/);
+});
+
+test("editor selections can delete devices or rooms with undo history", async () => {
+  const [page, styles] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /setSelectedDevice\(view === "editor" \? device\.id : ""\)/);
+  assert.match(page, /devices:p\.devices\.filter\(d=>d\.id!==currentDevice\.id\)/);
+  assert.match(page, /rooms:p\.rooms\.filter\(r=>r\.id!==current\.id\),devices:p\.devices\.filter\(d=>d\.roomId!==current\.id\)/);
+  assert.match(page, /event\.key !== "Delete" && event\.key !== "Backspace"/);
+  assert.match(page, /target\?\.matches\("input, textarea, select, \[contenteditable=true\]"\)/);
+  assert.match(page, />Delete device<\/button>/);
+  assert.match(page, />Delete room and its devices<\/button>/);
+  assert.match(styles, /\.device-dot\.selected \.device-face/);
 });
