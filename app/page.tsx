@@ -3,12 +3,27 @@
 import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import packageJson from "../package.json";
 import { toggleLightForDevice } from "./project-state.mjs";
+import { createDefaultHaDeviceConfig, createDefaultHomeAssistantSettings, migrateProject, upsertDeviceOverlay, validateHaDeviceConfig, validateProjectV2 } from "./project-schema.mjs";
 
 type Point = { x: number; y: number };
 type Room = { id: string; name: string; points: Point[]; color: string; light: boolean; temperature: number };
-type Device = { id: string; roomId: string; x: number; y: number; type: "light" | "sensor" };
-type Project = { name: string; width: number; height: number; image: string; rooms: Room[]; devices: Device[] };
-type Snapshot = Pick<Project, "name" | "rooms" | "devices">;
+type HaActionName = "none" | "more-info" | "toggle";
+type HaAction = { action: HaActionName };
+type HaDeviceConfig = {
+  entityId: string;
+  title: string;
+  mode: "state-icon" | "state-label" | "icon-and-label";
+  label: { enabled: boolean; offsetY: number; fontSizePx: number; color: string };
+  icon: string;
+  iconSizePx: number;
+  tapAction: HaAction;
+  holdAction: HaAction;
+  doubleTapAction: HaAction;
+};
+type HaOverlay = { id: string; entityId: string; state: "on"; roomIds: string[]; fill: string; opacity: number; blurPx: number };
+type Device = { id: string; roomId: string; x: number; y: number; type: "light" | "sensor"; ha?: HaDeviceConfig };
+type Project = { schemaVersion: 2; name: string; width: number; height: number; image: string; rooms: Room[]; devices: Device[]; homeAssistant: { background: "rooms-and-uploaded-image"; overlays: HaOverlay[] } };
+type Snapshot = Pick<Project, "name" | "rooms" | "devices" | "homeAssistant">;
 type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 type Bounds = { minX: number; minY: number; maxX: number; maxY: number; width: number; height: number };
 type Gesture = {
@@ -27,19 +42,23 @@ type Gesture = {
 
 const COLORS = ["#ffb86b", "#75d6b5", "#8ab8ff", "#ca9cff", "#ff8f9d", "#f8d86b"];
 const HANDLES: ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+const ACTIONS: HaActionName[] = ["none", "more-info", "toggle"];
+const STORAGE_KEY = "floor-plan-studio-project";
+const V1_BACKUP_KEY = "floor-plan-studio-project:v1-backup";
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ||
   (process.env.NODE_ENV === "development" ? "0.0.0-dev" : packageJson.version);
 const DEMO: Project = {
+  schemaVersion: 2,
   name: "Sample project", width: 1000, height: 620, image: "",
   rooms: [
     { id: "living", name: "Living area", color: COLORS[0], light: true, temperature: 72, points: [{x:42,y:58},{x:958,y:58},{x:958,y:570},{x:380,y:570},{x:380,y:306},{x:42,y:306}] },
     { id: "room-1", name: "Room 1", color: COLORS[2], light: false, temperature: 69, points: [{x:42,y:320},{x:365,y:320},{x:365,y:570},{x:42,y:570}] },
   ],
-  devices: [{id:"dev-1",roomId:"living",x:720,y:210,type:"light"},{id:"dev-2",roomId:"room-1",x:205,y:445,type:"sensor"}]
+  devices: [{id:"dev-1",roomId:"living",x:720,y:210,type:"light"},{id:"dev-2",roomId:"room-1",x:205,y:445,type:"sensor"}],
+  homeAssistant: createDefaultHomeAssistantSettings() as Project["homeAssistant"],
 };
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
-const normalizeProject = (value: Omit<Project, "name"> & {name?: string}): Project => ({...value,name:value.name?.trim() || "Sample project"});
 const slug = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"") || `room-${Date.now()}`;
 const pointsAttr = (points: Point[]) => points.map(p => `${p.x},${p.y}`).join(" ");
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -54,12 +73,22 @@ const handlePoint = (b: Bounds, handle: ResizeHandle): Point => ({
 });
 
 export default function Home() {
-  const [project, setProject] = useState<Project>(() => {
-    if (typeof window === "undefined") return DEMO;
-    const raw = localStorage.getItem("floor-plan-studio-project");
-    if (!raw) return DEMO;
-    try { return normalizeProject(JSON.parse(raw)); } catch { return DEMO; }
+  const [initialLoad] = useState(() => {
+    if (typeof window === "undefined") return { project: DEMO, notice: "", autosave: true };
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { project: DEMO, notice: "", autosave: true };
+    try {
+      const parsed = JSON.parse(raw);
+      const result = migrateProject(parsed);
+      if (result.migrated && !localStorage.getItem(V1_BACKUP_KEY)) localStorage.setItem(V1_BACKUP_KEY, raw);
+      return { project: result.project as Project, notice: result.migrated ? "Legacy project upgraded to schema v2. A v1 backup was retained." : "", autosave: true };
+    } catch (error) {
+      return { project: DEMO, notice: `Saved project was not overwritten because it could not be loaded: ${error instanceof Error ? error.message : "invalid project"}`, autosave: false };
+    }
   });
+  const [project, setProject] = useState<Project>(initialLoad.project);
+  const [loadNotice, setLoadNotice] = useState(initialLoad.notice);
+  const [autosaveEnabled, setAutosaveEnabled] = useState(initialLoad.autosave);
   const [selected, setSelected] = useState("living");
   const [selectedDevice, setSelectedDevice] = useState("");
   const [tool, setTool] = useState<"select"|"draw"|"device">("select");
@@ -71,13 +100,16 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const projectFileRef = useRef<HTMLInputElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const current = project.rooms.find(r => r.id === selected);
   const currentDevice = project.devices.find(d => d.id === selectedDevice);
   const currentBounds = current ? roomBounds(current.points) : null;
+  const currentHaErrors = currentDevice?.ha ? validateHaDeviceConfig(currentDevice.ha, "Home Assistant") : [];
+  const currentOverlay = currentDevice?.ha?.entityId ? project.homeAssistant.overlays.find(o => o.entityId === currentDevice.ha?.entityId) : undefined;
 
   const stats = useMemo(() => ({rooms: project.rooms.length, devices: project.devices.length}), [project]);
-  const snapshot = (): Snapshot => clone({name: project.name, rooms: project.rooms, devices: project.devices});
+  const snapshot = (): Snapshot => clone({name: project.name, rooms: project.rooms, devices: project.devices, homeAssistant: project.homeAssistant});
   const remember = () => { setHistory(h => [...h.slice(-39), snapshot()]); setFuture([]); setSaved(false); };
   const updateProject = (fn: (p: Project) => Project) => { remember(); setProject(fn); };
   const pointer = (event: PointerEvent<SVGElement>): Point => {
@@ -144,14 +176,51 @@ export default function Home() {
   };
   const upload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader();
-    reader.onload = () => { const img = new Image(); img.onload = () => { remember(); setProject(p=>({...p,width:img.naturalWidth,height:img.naturalHeight,image:String(reader.result),rooms:[],devices:[]})); setSelected(""); setSelectedDevice(""); }; img.src=String(reader.result); };
+    reader.onload = () => { const img = new Image(); img.onload = () => { remember(); setProject(p=>({...p,width:img.naturalWidth,height:img.naturalHeight,image:String(reader.result),rooms:[],devices:[],homeAssistant:{...p.homeAssistant,overlays:[]}})); setSelected(""); setSelectedDevice(""); }; img.src=String(reader.result); };
     reader.readAsDataURL(file); e.target.value="";
+  };
+  const importProject = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const result = migrateProject(JSON.parse(String(reader.result)));
+        if (typeof window !== "undefined") {
+          const previous = localStorage.getItem(STORAGE_KEY);
+          if (previous && !localStorage.getItem(V1_BACKUP_KEY)) localStorage.setItem(V1_BACKUP_KEY, previous);
+        }
+        setProject(result.project as Project); setHistory([]); setFuture([]); setSelected(""); setSelectedDevice(""); setAutosaveEnabled(true); setLoadNotice(result.migrated ? "Imported legacy project and upgraded it to schema v2." : "Project imported successfully.");
+      } catch (error) { setLoadNotice(`Import failed: ${error instanceof Error ? error.message : "invalid project"}`); }
+    };
+    reader.readAsText(file); e.target.value="";
   };
   const undo = () => { const prev=history.at(-1); if(!prev)return; setFuture(f=>[snapshot(),...f]); setProject(p=>({...p,...clone(prev)})); setHistory(h=>h.slice(0,-1)); };
   const redo = () => { const next=future[0]; if(!next)return; setHistory(h=>[...h,snapshot()]); setProject(p=>({...p,...clone(next)})); setFuture(f=>f.slice(1)); };
   const download = (name:string, contents:string, type="application/json") => { const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([contents],{type})); a.download=name; a.click(); URL.revokeObjectURL(a.href); };
   const exportSvg = () => download("floor-plan.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${project.width} ${project.height}" data-project-name="${project.name.replace(/[&<>\"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]!))}"><title>${project.name}</title><g id="rooms">${project.rooms.map(r=>`<polygon id="${r.id}" data-room="${r.id}" points="${pointsAttr(r.points)}" fill="${r.color}" fill-opacity=".22" stroke="${r.color}"/>`).join("")}</g><g id="devices">${project.devices.map(d=>`<circle id="${d.id}" data-room="${d.roomId}" data-device-type="${d.type}" cx="${d.x}" cy="${d.y}" r="20"/>`).join("")}</g></svg>`, "image/svg+xml");
-  const save = () => { localStorage.setItem("floor-plan-studio-project",JSON.stringify(project)); setSaved(true); setTimeout(()=>setSaved(false),1800); };
+  const save = () => {
+    const errors = validateProjectV2(project);
+    if (errors.length) { setLoadNotice(`Fix validation before saving: ${errors[0]}`); return; }
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(project)); setSaved(true); setAutosaveEnabled(true); setTimeout(()=>setSaved(false),1800);
+  };
+  const updateDeviceHa = (patch: Partial<HaDeviceConfig>) => {
+    if (!currentDevice) return;
+    updateProject(p=>{
+      const oldDevice = p.devices.find(d=>d.id===currentDevice.id)!;
+      const base = oldDevice.ha || createDefaultHaDeviceConfig(oldDevice.type) as HaDeviceConfig;
+      const nextHa = {...base,...patch} as HaDeviceConfig;
+      const overlays = oldDevice.ha?.entityId && oldDevice.ha.entityId !== nextHa.entityId ? p.homeAssistant.overlays.map(o=>o.entityId===oldDevice.ha?.entityId?{...o,entityId:nextHa.entityId}:o) : p.homeAssistant.overlays;
+      return {...p,devices:p.devices.map(d=>d.id===currentDevice.id?{...d,ha:nextHa}:d),homeAssistant:{...p.homeAssistant,overlays}};
+    });
+  };
+  const updateAction = (key: "tapAction"|"holdAction"|"doubleTapAction", action: HaActionName) => {
+    if (!currentDevice) return;
+    const base = currentDevice.ha || createDefaultHaDeviceConfig(currentDevice.type) as HaDeviceConfig;
+    updateDeviceHa({[key]:{action}} as Partial<HaDeviceConfig>);
+  };
+  const setOverlayRoom = (roomId: string) => {
+    if (!currentDevice) return;
+    updateProject(p=>upsertDeviceOverlay(p,currentDevice.id,roomId) as Project);
+  };
   const activateDevice = (device: Device) => {
     setSelected(device.roomId);
     if (view !== "playground" || device.type !== "light") return;
@@ -160,19 +229,22 @@ export default function Home() {
   const deleteSelection = () => {
     if (view !== "editor" || tool !== "select") return;
     if (currentDevice) {
-      updateProject(p=>({...p,devices:p.devices.filter(d=>d.id!==currentDevice.id)}));
+      updateProject(p=>({...p,devices:p.devices.filter(d=>d.id!==currentDevice.id),homeAssistant:{...p.homeAssistant,overlays:currentDevice.ha?.entityId?p.homeAssistant.overlays.filter(o=>o.entityId!==currentDevice.ha?.entityId):p.homeAssistant.overlays}}));
       setSelectedDevice("");
       return;
     }
     if (current) {
-      updateProject(p=>({...p,rooms:p.rooms.filter(r=>r.id!==current.id),devices:p.devices.filter(d=>d.roomId!==current.id)}));
+      updateProject(p=>({...p,rooms:p.rooms.filter(r=>r.id!==current.id),devices:p.devices.filter(d=>d.roomId!==current.id),homeAssistant:{...p.homeAssistant,overlays:p.homeAssistant.overlays.map(o=>({...o,roomIds:o.roomIds.filter(id=>id!==current.id)})).filter(o=>o.roomIds.length)}}));
       setSelected("");
     }
   };
   useEffect(() => {
-    const timer = window.setTimeout(() => { localStorage.setItem("floor-plan-studio-project",JSON.stringify(project)); setSaved(true); }, 250);
+    if (!autosaveEnabled) return;
+    const errors = validateProjectV2(project);
+    if (errors.length) { setSaved(false); return; }
+    const timer = window.setTimeout(() => { localStorage.setItem(STORAGE_KEY,JSON.stringify(project)); setSaved(true); }, 250);
     return () => window.clearTimeout(timer);
-  }, [project]);
+  }, [project, autosaveEnabled]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -190,7 +262,7 @@ export default function Home() {
     <header className="topbar">
       <a className="brand" href="#"><span className="brandmark">◇</span><span>Floor Plan <b>Studio</b></span><span className="beta">LOCAL</span></a>
       <div className="view-switch" role="tablist"><button className={view==="editor"?"active":""} onClick={()=>setView("editor")}>Editor</button><button className={view==="playground"?"active":""} onClick={()=>setView("playground")}>Playground</button></div>
-      <div className="header-actions"><span className="privacy"><i/> Private on this device</span><button className="secondary" onClick={save}>{saved?"Auto-saved ✓":"Save locally"}</button><button className="primary" onClick={()=>download("floor-plan.json",JSON.stringify(project,null,2))}>Export project</button></div>
+      <div className="header-actions"><span className="privacy"><i/> Private on this device</span><button className="secondary" onClick={save}>{saved?"Auto-saved ✓":"Save locally"}</button><input ref={projectFileRef} type="file" accept="application/json,.json" onChange={importProject} style={{display:"none"}}/><button className="secondary" onClick={()=>projectFileRef.current?.click()}>Import project</button><button className="primary" onClick={()=>download("floor-plan.json",JSON.stringify(project,null,2))}>Export project</button></div>
     </header>
 
     <section className="workspace">
@@ -204,6 +276,7 @@ export default function Home() {
 
       <section className="stage-column">
         <div className="stage-top"><div><span className="eyebrow">{view==="editor"?"SEMANTIC EDITOR":"INTERACTIVE PREVIEW"}</span>{view==="editor"?<input className="project-name" aria-label="Project name" value={project.name} onChange={e=>{setSaved(false);setProject(p=>({...p,name:e.target.value}))}} onBlur={()=>setProject(p=>({...p,name:p.name.trim()||"Untitled project"}))}/>:<h1>{project.name}</h1>}</div><div className="stage-actions"><input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={upload}/><button className="secondary" onClick={()=>fileRef.current?.click()}>↑ Upload image</button><button className="secondary" onClick={exportSvg}>↓ SVG</button></div></div>
+        {loadNotice&&<div className="hint edit-hint" role="status">{loadNotice}</div>}
         <div className={`canvas-wrap ${tool} ${dragging?"dragging":""}`}>
           <svg ref={svgRef} viewBox={`0 0 ${project.width} ${project.height}`} onPointerDown={onCanvas} onPointerMove={onPointerMove} onPointerUp={endGesture} onPointerCancel={endGesture} onDoubleClick={finishRoom} aria-label="Floor plan editor">
             <defs><pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#dce4e2" strokeWidth="1"/></pattern></defs>
@@ -231,10 +304,21 @@ export default function Home() {
       <aside className="inspector">
         <div className="inspector-title"><div><span className="eyebrow">INSPECTOR</span><h2>{currentDevice ? `${currentDevice.type === "light" ? "Light" : "Sensor"} device` : current?.name || "Nothing selected"}</h2></div><span className="color-dot" style={{background:current?.color||"#ccd5d2"}}/></div>
         {currentDevice ? <>
-          <div className="edit-callout"><b>Edit device</b><p>Drag the device to reposition it. Press Delete or Backspace to remove it.</p></div>
+          <div className="edit-callout"><b>Edit device</b><p>Drag the device to reposition it. Home Assistant metadata is saved with the project but credentials are never stored.</p></div>
           <div className="field"><span>Device ID</span><code>{currentDevice.id}</code></div>
           <div className="field"><span>Type</span><b>{currentDevice.type}</b></div>
           <div className="field"><span>Position</span><b>{currentDevice.x}, {currentDevice.y}</b></div>
+          <div className="section-title">HOME ASSISTANT</div>
+          <label>Entity ID<input placeholder={currentDevice.type==="light"?"light.alarm_light":"sensor.room_temperature"} value={currentDevice.ha?.entityId||""} onChange={e=>updateDeviceHa({entityId:e.target.value.trim()})}/></label>
+          <label>Alias / title<input placeholder="Alarm light" value={currentDevice.ha?.title||""} onChange={e=>updateDeviceHa({title:e.target.value})}/></label>
+          <label>Elements<select value={currentDevice.ha?.mode || (currentDevice.type==="light"?"icon-and-label":"state-label")} onChange={e=>updateDeviceHa({mode:e.target.value as HaDeviceConfig["mode"]})}><option value="state-icon">State icon</option><option value="state-label">State label</option><option value="icon-and-label">Icon + label</option></select></label>
+          <label>Icon override<input placeholder="mdi:alarm-light" value={currentDevice.ha?.icon||""} onChange={e=>updateDeviceHa({icon:e.target.value.trim()})}/></label>
+          <label>Icon size <span className="range-value">{currentDevice.ha?.iconSizePx||40}px</span><input type="range" min="12" max="96" value={currentDevice.ha?.iconSizePx||40} onChange={e=>updateDeviceHa({iconSizePx:+e.target.value})}/></label>
+          <label>Tap action<select value={currentDevice.ha?.tapAction.action || (currentDevice.type==="light"?"toggle":"more-info")} onChange={e=>updateAction("tapAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
+          <label>Hold action<select value={currentDevice.ha?.holdAction.action||"none"} onChange={e=>updateAction("holdAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
+          <label>Double-tap action<select value={currentDevice.ha?.doubleTapAction.action||"none"} onChange={e=>updateAction("doubleTapAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
+          {currentDevice.type==="light"&&<label>Room lighting overlay<select value={currentOverlay?.roomIds[0]||""} onChange={e=>setOverlayRoom(e.target.value)}><option value="">None</option>{project.rooms.map(room=><option key={room.id} value={room.id}>{room.name}{room.id===currentDevice.roomId?" (containing room)":""}</option>)}</select></label>}
+          {currentHaErrors.length>0&&<div className="edit-callout"><b>Home Assistant validation</b>{currentHaErrors.map(error=><p key={error}>{error}</p>)}</div>}
           <button className="danger" onClick={deleteSelection}>Delete device</button>
         </> : current ? <>
           <div className="edit-callout"><b>Edit shape</b><p>Drag the room to move it. Use square handles to resize or round handles to adjust individual vertices.</p></div>
@@ -247,7 +331,7 @@ export default function Home() {
           <div className="section-title">ROOM COLOR</div><div className="swatches">{COLORS.map(c=><button key={c} className={current.color===c?"active":""} style={{background:c}} onClick={()=>updateProject(p=>({...p,rooms:p.rooms.map(r=>r.id===current.id?{...r,color:c}:r)}))}/>)}</div>
           <button className="danger" onClick={deleteSelection}>Delete room and its devices</button>
         </>:<div className="inspector-empty">Select a room to edit its shape, label, status, color, and devices.</div>}
-        <div className="privacy-card"><b>Built for privacy</b><p>Images and projects stay in your browser. Nothing is uploaded for processing.</p></div>
+        <div className="privacy-card"><b>Built for privacy</b><p>Images and projects stay in your browser. Home Assistant entity IDs are project metadata; tokens and credentials are never requested or exported.</p></div>
       </aside>
     </section>
   </main>;
