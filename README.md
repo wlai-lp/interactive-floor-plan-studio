@@ -87,6 +87,10 @@ Pull-request titles must use Conventional Commits, for example `feat: add room g
 
 The sidebar reads the package version in production. Local development displays `v0.0.0-dev`. Docker can override the displayed build version with `docker build --build-arg APP_VERSION=1.2.3 ...`.
 
+## Agent workflow
+
+Project agents follow the shared workflow in [`docs/development/agent-workflow.md`](docs/development/agent-workflow.md). Role-specific operating instructions live in [`.github/agents/`](.github/agents/). GitHub Issues and the GitHub Project remain the authoritative work queue and handoff mechanism.
+
 ## Roadmap
 
 - Edge insertion and vertex deletion
