@@ -67,6 +67,8 @@ test("sample project uses a power plug for the second device", () => {
   assert.match(page, /id:"dev-2"[^\n]+type:"plug"/);
   assert.match(page, /device-icon device-icon-plug/);
   assert.match(page, /switch\.floor_lamp/);
+  assert.match(page, /isRoomControllableDevice\(currentDevice\.type\)&&<details/);
+  assert.match(page, /inferDeviceOverlay/);
 });
 
 test("export page uses clear primary and secondary actions", () => {
