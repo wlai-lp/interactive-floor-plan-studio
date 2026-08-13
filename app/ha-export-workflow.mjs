@@ -1,6 +1,6 @@
 import { buildOverlayDataUriMap } from "./ha-overlay.mjs";
 import { buildPictureElementsCard, generateHomeAssistantYaml } from "./ha-export.mjs";
-import { containingRoomIds, validateProjectV2 } from "./project-schema.mjs";
+import { containingRoomIds, isRoomControllableDevice, validateProjectV2 } from "./project-schema.mjs";
 
 const ENTITY_ID = /^[a-z0-9_]+\.[a-z0-9_]+$/;
 const WARN_YAML_BYTES = 500 * 1024;
@@ -24,15 +24,16 @@ export function validateHomeAssistantExport(project) {
     if (!device.ha.title?.trim()) errors.push(`${path}: device title is required for export.`);
     if (!device.ha.entityId) errors.push(`${path}: Home Assistant entity ID is required for export.`);
     else if (!ENTITY_ID.test(device.ha.entityId)) errors.push(`${path}: entity ID must look like light.kitchen.`);
-    if (device.type === "light") {
+    if (isRoomControllableDevice(device.type)) {
+      const label = device.type === "plug" ? "power plug" : "light";
       const containingRooms = containingRoomIds(project, device);
-      if (!containingRooms.length) errors.push(`${path}: move the light inside a room before export.`);
-      else if (containingRooms.length > 1) errors.push(`${path}: light overlaps multiple rooms; select one room mapping before export.`);
-      if (device.ha.tapAction?.action !== "toggle") errors.push(`${path}: light tap action must be toggle for the MVP export.`);
-      if (device.ha.holdAction?.action !== "more-info") errors.push(`${path}: light hold action must be more-info for the MVP export.`);
-      if (device.ha.mode !== "state-label" && device.ha.mode !== "icon-and-label") errors.push(`${path}: a state label is required for the canonical MVP export.`);
+      if (!containingRooms.length) errors.push(`${path}: move the ${label} inside a room before export.`);
+      else if (containingRooms.length > 1) errors.push(`${path}: ${label} overlaps multiple rooms; select one room mapping before export.`);
+      if (device.ha.tapAction?.action !== "toggle") errors.push(`${path}: ${label} tap action must be toggle for the MVP export.`);
+      if (device.ha.holdAction?.action !== "more-info") errors.push(`${path}: ${label} hold action must be more-info for the MVP export.`);
+      if (device.ha.mode !== "icon-and-label") errors.push(`${path}: ${label} must use Icon + label for the canonical MVP export.`);
       const overlay = (project.homeAssistant?.overlays || []).find((item) => item.entityId === device.ha.entityId);
-      if (!overlay) errors.push(`${path}: light must be mapped to a room overlay.`);
+      if (!overlay) errors.push(`${path}: ${label} must be mapped to a room overlay.`);
       else if (!overlay.roomIds?.length || overlay.roomIds.some((roomId) => !roomIds.has(roomId))) errors.push(`${path}: overlay must reference complete existing room geometry.`);
     }
   }
