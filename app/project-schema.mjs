@@ -5,12 +5,14 @@ export const HA_ELEMENT_MODES = ["state-icon", "state-label", "icon-and-label"];
 
 const ENTITY_ID = /^[a-z0-9_]+\.[a-z0-9_]+$/;
 const HEX_COLOR = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
+export const isRoomControllableDevice = (type) => type === "light" || type === "plug";
 
 export function createDefaultHaDeviceConfig(type = "light") {
+  const controllable = isRoomControllableDevice(type);
   return {
     entityId: "",
     title: "",
-    mode: type === "light" ? "icon-and-label" : "state-label",
+    mode: controllable ? "icon-and-label" : "state-label",
     label: {
       enabled: true,
       offsetY: 44,
@@ -19,8 +21,8 @@ export function createDefaultHaDeviceConfig(type = "light") {
     },
     icon: "",
     iconSizePx: 40,
-    tapAction: { action: type === "light" ? "toggle" : "more-info" },
-    holdAction: { action: type === "light" ? "more-info" : "none" },
+    tapAction: { action: controllable ? "toggle" : "more-info" },
+    holdAction: { action: controllable ? "more-info" : "none" },
     doubleTapAction: { action: "none" },
   };
 }
@@ -53,10 +55,12 @@ function normalizeHaDeviceConfig(value, type) {
   if (!isRecord(value)) return undefined;
   const defaults = createDefaultHaDeviceConfig(type);
   const labelValue = isRecord(value.label) ? value.label : {};
+  const legacyPlugDefaults = type === "plug" && value.mode === "state-label" &&
+    normalizeAction(value.tapAction).action === "more-info" && normalizeAction(value.holdAction).action === "none";
   return {
     entityId: typeof value.entityId === "string" ? value.entityId.trim() : "",
     title: typeof value.title === "string" ? value.title : "",
-    mode: HA_ELEMENT_MODES.includes(value.mode) ? value.mode : defaults.mode,
+    mode: legacyPlugDefaults ? defaults.mode : HA_ELEMENT_MODES.includes(value.mode) ? value.mode : defaults.mode,
     label: {
       enabled: typeof labelValue.enabled === "boolean" ? labelValue.enabled : defaults.label.enabled,
       offsetY: typeof labelValue.offsetY === "number" ? labelValue.offsetY : defaults.label.offsetY,
@@ -65,8 +69,8 @@ function normalizeHaDeviceConfig(value, type) {
     },
     icon: typeof value.icon === "string" ? value.icon.trim() : "",
     iconSizePx: typeof value.iconSizePx === "number" ? value.iconSizePx : defaults.iconSizePx,
-    tapAction: normalizeAction(value.tapAction, defaults.tapAction.action),
-    holdAction: normalizeAction(value.holdAction, defaults.holdAction.action),
+    tapAction: legacyPlugDefaults ? defaults.tapAction : normalizeAction(value.tapAction, defaults.tapAction.action),
+    holdAction: legacyPlugDefaults ? defaults.holdAction : normalizeAction(value.holdAction, defaults.holdAction.action),
     doubleTapAction: normalizeAction(value.doubleTapAction),
   };
 }
@@ -103,9 +107,9 @@ export function containingRoomIds(project, device) {
   return (project.rooms || []).filter(room => pointInRoom(device, room)).map(room => room.id);
 }
 
-export function inferLightOverlay(project, deviceId) {
+export function inferDeviceOverlay(project, deviceId) {
   const device = project.devices.find(item => item.id === deviceId);
-  if (!device || device.type !== "light") return project;
+  if (!device || !isRoomControllableDevice(device.type)) return project;
   const matches = containingRoomIds(project, device);
   const existing = device.ha?.entityId
     ? project.homeAssistant.overlays.find(overlay => overlay.entityId === device.ha.entityId)
@@ -134,6 +138,8 @@ export function inferLightOverlay(project, deviceId) {
     homeAssistant: { ...project.homeAssistant, overlays: [...otherOverlays, overlay] },
   };
 }
+
+export const inferLightOverlay = inferDeviceOverlay;
 
 export function validateHaDeviceConfig(config, path = "device.ha") {
   if (!config) return [];
@@ -229,7 +235,7 @@ export function migrateProject(raw) {
 
 export function upsertDeviceOverlay(project, deviceId, roomId) {
   const device = project.devices.find(item => item.id === deviceId);
-  if (!device?.ha?.entityId || device.type !== "light") return project;
+  if (!device?.ha?.entityId || !isRoomControllableDevice(device.type)) return project;
   const entityId = device.ha.entityId;
   const overlays = project.homeAssistant.overlays.filter(overlay => overlay.entityId !== entityId);
   if (roomId) {
