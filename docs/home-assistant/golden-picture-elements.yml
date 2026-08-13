@@ -12,13 +12,14 @@ elements:
           left: 50%
           top: 50%
           width: 100%
-          opacity: 0.55
-          filter: blur(3px)
+          transform: "translate(-50%, -50%)"
+          pointer-events: none
   - type: state-icon
     entity: light.alarm_light
     style:
       left: 25%
       top: 25%
+      transform: "translate(-50%, -50%)"
       --mdc-icon-size: 24px
     tap_action:
       action: toggle
@@ -29,5 +30,6 @@ elements:
     style:
       left: 25%
       top: 29%
+      transform: "translate(-50%, -50%)"
       color: "#fff"
       font-size: 12px
