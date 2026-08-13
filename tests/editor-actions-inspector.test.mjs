@@ -16,7 +16,10 @@ test("project commands are consolidated under Actions", () => {
 
 test("Home Assistant export exposes prerequisites", () => {
   assert.match(page, /disabled=!\{hasHaExport\}/);
-  assert.match(page, /Configure at least one Home Assistant entity first/);
+  assert.match(page, /Configure an Entity ID first/);
+  assert.match(page, />Select device</);
+  assert.match(page, /startEntitySetup/);
+  assert.match(css, /\.export-prerequisite/);
 });
 
 test("entity inspector prioritizes user-facing fields and progressive disclosure", () => {
