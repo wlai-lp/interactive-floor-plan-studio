@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-const css = await readFile(new URL("../app/issue-26.css", import.meta.url), "utf8");
+const css = await readFile(new URL("../app/editor-actions-inspector.css", import.meta.url), "utf8");
 
 test("project commands are consolidated under Actions", () => {
   assert.match(page, />Actions <span/);
