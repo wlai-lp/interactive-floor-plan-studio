@@ -53,8 +53,8 @@ test("device SVG exposes one accessible full-icon interaction target", async () 
 test("project identity is editable, persisted, and exported", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(page, /aria-label="Project name"/);
-  assert.match(page, /localStorage\.setItem\("floor-plan-studio-project",JSON\.stringify\(project\)\)/);
-  assert.match(page, /normalizeProject\(JSON\.parse\(raw\)\)/);
+  assert.match(page, /localStorage\.setItem\(STORAGE_KEY,JSON\.stringify\(project\)\)/);
+  assert.match(page, /migrateProject\(parsed\)/);
   assert.match(page, /data-project-name=/);
 });
 
@@ -66,7 +66,8 @@ test("editor device gesture is separate from playground activation", async () =>
   assert.match(page, /kind:\"device\"/);
   assert.match(page, /view !== "editor" \|\| tool !== "select"/);
   assert.match(page, /x:clamp\(d\.x\+dx,0,project\.width\)/);
-  assert.match(page, /if\(gesture\.changed\)\{setHistory/);
+  assert.match(page, /if\(gesture\.changed\)\{/);
+  assert.match(page, /inferLightOverlay/);
   assert.match(styles, /\.device-dot\.draggable\{cursor:grab\}/);
 });
 

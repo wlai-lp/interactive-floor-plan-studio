@@ -25,10 +25,12 @@ test("valid export produces paste-ready native YAML", () => {
 
 test("validation blocks broken canonical light behavior", () => {
   const broken = structuredClone(project);
+  broken.devices[0].ha.title = "";
   broken.devices[0].ha.tapAction = { action: "none" };
   broken.devices[0].ha.holdAction = { action: "none" };
   broken.homeAssistant.overlays = [];
   const validation = validateHomeAssistantExport(broken);
+  assert.ok(validation.errors.some((error) => /device title/i.test(error)));
   assert.ok(validation.errors.some((error) => /tap action/i.test(error)));
   assert.ok(validation.errors.some((error) => /hold action/i.test(error)));
   assert.ok(validation.errors.some((error) => /mapped to a room overlay/i.test(error)));
@@ -36,4 +38,14 @@ test("validation blocks broken canonical light behavior", () => {
 
 test("safe filenames are deterministic", () => {
   assert.equal(safeYamlFilename("My Home / Floor Plan"), "my-home-floor-plan-home-assistant.yaml");
+});
+
+test("validation reports geometry correction paths", () => {
+  const outside = structuredClone(project);
+  outside.devices[0].x = 2000;
+  assert.ok(validateHomeAssistantExport(outside).errors.some((error) => /inside a room/i.test(error)));
+
+  const overlapping = structuredClone(project);
+  overlapping.rooms.push({ ...structuredClone(project.rooms[0]), id: "overlap" });
+  assert.ok(validateHomeAssistantExport(overlapping).errors.some((error) => /overlaps multiple rooms/i.test(error)));
 });

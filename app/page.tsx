@@ -3,7 +3,7 @@
 import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import packageJson from "../package.json";
 import { toggleLightForDevice } from "./project-state.mjs";
-import { createDefaultHaDeviceConfig, createDefaultHomeAssistantSettings, migrateProject, upsertDeviceOverlay, validateHaDeviceConfig, validateProjectV2 } from "./project-schema.mjs";
+import { createDefaultHaDeviceConfig, createDefaultHomeAssistantSettings, inferLightOverlay, migrateProject, upsertDeviceOverlay, validateHaDeviceConfig, validateProjectV2 } from "./project-schema.mjs";
 import "./editor-actions-inspector.css";
 
 type Point = { x: number; y: number };
@@ -21,7 +21,7 @@ type HaDeviceConfig = {
   holdAction: HaAction;
   doubleTapAction: HaAction;
 };
-type HaOverlay = { id: string; entityId: string; state: "on"; roomIds: string[]; fill: string; opacity: number; blurPx: number };
+type HaOverlay = { id: string; entityId: string; state: "on"; roomIds: string[]; fill: string; opacity: number; blurPx: number; mappingSource?: "inferred"|"explicit" };
 type Device = { id: string; roomId: string; x: number; y: number; type: "light" | "sensor"; ha?: HaDeviceConfig };
 type Project = { schemaVersion: 2; name: string; width: number; height: number; image: string; rooms: Room[]; devices: Device[]; homeAssistant: { background: "rooms-and-uploaded-image"; overlays: HaOverlay[] } };
 type Snapshot = Pick<Project, "name" | "rooms" | "devices" | "homeAssistant">;
@@ -47,6 +47,7 @@ const ACTIONS: HaActionName[] = ["none", "more-info", "toggle"];
 const STORAGE_KEY = "floor-plan-studio-project";
 const V1_BACKUP_KEY = "floor-plan-studio-project:v1-backup";
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || (process.env.NODE_ENV === "development" ? "0.0.0-dev" : packageJson.version);
+const WELCOME_KEY = "floor-plan-studio-ha-welcome-dismissed";
 const DEMO: Project = {
   schemaVersion: 2,
   name: "Sample project", width: 1000, height: 620, image: "",
@@ -87,10 +88,16 @@ export default function Home() {
     }
   });
   const [project, setProject] = useState<Project>(initialLoad.project);
+  const [initialSelection] = useState(() => {
+    if (typeof window === "undefined") return { roomId: "living", deviceId: "" };
+    const deviceId = new URLSearchParams(window.location.search).get("device");
+    const device = initialLoad.project.devices.find(item => item.id === deviceId);
+    return device ? { roomId: device.roomId, deviceId: device.id } : { roomId: "living", deviceId: "" };
+  });
   const [loadNotice, setLoadNotice] = useState(initialLoad.notice);
   const [autosaveEnabled, setAutosaveEnabled] = useState(initialLoad.autosave);
-  const [selected, setSelected] = useState("living");
-  const [selectedDevice, setSelectedDevice] = useState("");
+  const [selected, setSelected] = useState(initialSelection.roomId);
+  const [selectedDevice, setSelectedDevice] = useState(initialSelection.deviceId);
   const [tool, setTool] = useState<"select"|"draw"|"device">("select");
   const [draft, setDraft] = useState<Point[]>([]);
   const [view, setView] = useState<"editor"|"playground">("editor");
@@ -99,6 +106,7 @@ export default function Home() {
   const [saved, setSaved] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [welcomeVisible, setWelcomeVisible] = useState(() => typeof window !== "undefined" && initialLoad.project.devices.length > 0 && localStorage.getItem(WELCOME_KEY) !== "true");
   const svgRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const projectFileRef = useRef<HTMLInputElement>(null);
@@ -163,7 +171,10 @@ export default function Home() {
   const endGesture = (e: PointerEvent<SVGSVGElement>) => {
     const gesture=gestureRef.current; if(!gesture)return;
     if(svgRef.current?.hasPointerCapture(e.pointerId)) svgRef.current.releasePointerCapture(e.pointerId);
-    if(gesture.changed){setHistory(h=>[...h.slice(-39),gesture.snapshot]);setFuture([])} gestureRef.current=null; setDragging(false);
+    if(gesture.changed){
+      setHistory(h=>[...h.slice(-39),gesture.snapshot]);setFuture([]);
+      if (gesture.kind === "device" && gesture.deviceId) setProject(p=>inferLightOverlay(p,gesture.deviceId!) as Project);
+    } gestureRef.current=null; setDragging(false);
   };
   const onCanvas = (e: PointerEvent<SVGSVGElement>) => {
     if (view !== "editor" || gestureRef.current) return;
@@ -171,7 +182,9 @@ export default function Home() {
     if (tool === "select") { setSelected(""); setSelectedDevice(""); }
     if (tool === "draw") setDraft(d => [...d, p]);
     if (tool === "device" && current) {
-      updateProject(old => ({...old, devices:[...old.devices,{id:`device-${Date.now()}`,roomId:current.id,x:p.x,y:p.y,type:"light"}]})); setTool("select");
+      const id=`device-${crypto.randomUUID()}`;
+      updateProject(old => ({...old, devices:[...old.devices,{id,roomId:current.id,x:p.x,y:p.y,type:"light",ha:createDefaultHaDeviceConfig("light") as HaDeviceConfig}]}));
+      setSelectedDevice(id); setWelcomeVisible(true); setTool("select");
     }
   };
   const finishRoom = () => {
@@ -203,11 +216,6 @@ export default function Home() {
   const redo = () => { const next=future[0]; if(!next)return; setHistory(h=>[...h,snapshot()]); setProject(p=>({...p,...clone(next)})); setFuture(f=>f.slice(1)); };
   const download = (name:string, contents:string, type="application/json") => { const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([contents],{type})); a.download=name; a.click(); URL.revokeObjectURL(a.href); };
   const exportSvg = () => download("floor-plan.svg", `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${project.width} ${project.height}" data-project-name="${project.name.replace(/[&<>\"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]!))}"><title>${project.name}</title><g id="rooms">${project.rooms.map(r=>`<polygon id="${r.id}" data-room="${r.id}" points="${pointsAttr(r.points)}" fill="${r.color}" fill-opacity=".22" stroke="${r.color}"/>`).join("")}</g><g id="devices">${project.devices.map(d=>`<circle id="${d.id}" data-room="${d.roomId}" data-device-type="${d.type}" cx="${d.x}" cy="${d.y}" r="20"/>`).join("")}</g></svg>`, "image/svg+xml");
-  const save = () => {
-    const errors = validateProjectV2(project);
-    if (errors.length) { setLoadNotice(`Fix validation before saving: ${errors[0]}`); return; }
-    localStorage.setItem(STORAGE_KEY,JSON.stringify(project)); setSaved(true); setAutosaveEnabled(true); setTimeout(()=>setSaved(false),1800);
-  };
   const updateDeviceHa = (patch: Partial<HaDeviceConfig>) => {
     if (!currentDevice) return;
     updateProject(p=>{
@@ -215,7 +223,8 @@ export default function Home() {
       const base = oldDevice.ha || createDefaultHaDeviceConfig(oldDevice.type) as HaDeviceConfig;
       const nextHa = {...base,...patch} as HaDeviceConfig;
       const overlays = oldDevice.ha?.entityId && oldDevice.ha.entityId !== nextHa.entityId ? p.homeAssistant.overlays.map(o=>o.entityId===oldDevice.ha?.entityId?{...o,entityId:nextHa.entityId}:o) : p.homeAssistant.overlays;
-      return {...p,devices:p.devices.map(d=>d.id===currentDevice.id?{...d,ha:nextHa}:d),homeAssistant:{...p.homeAssistant,overlays}};
+      const next={...p,devices:p.devices.map(d=>d.id===currentDevice.id?{...d,ha:nextHa}:d),homeAssistant:{...p.homeAssistant,overlays}};
+      return inferLightOverlay(next,currentDevice.id) as Project;
     });
   };
   const updateAction = (key: "tapAction"|"holdAction"|"doubleTapAction", action: HaActionName) => {
@@ -253,7 +262,7 @@ export default function Home() {
   useEffect(() => {
     if (!autosaveEnabled) return;
     const errors = validateProjectV2(project);
-    if (errors.length) { setSaved(false); return; }
+    if (errors.length) return;
     const timer = window.setTimeout(() => { localStorage.setItem(STORAGE_KEY,JSON.stringify(project)); setSaved(true); }, 250);
     return () => window.clearTimeout(timer);
   }, [project, autosaveEnabled]);
@@ -310,6 +319,14 @@ export default function Home() {
         <div className="stage-top"><div><span className="eyebrow">{view==="editor"?"SEMANTIC EDITOR":"INTERACTIVE PREVIEW"}</span>{view==="editor"?<input className="project-name" aria-label="Project name" value={project.name} onChange={e=>{setSaved(false);setProject(p=>({...p,name:e.target.value}))}} onBlur={()=>setProject(p=>({...p,name:p.name.trim()||"Untitled project"}))}/>:<h1>{project.name}</h1>}</div></div>
         {loadNotice&&<div className="hint edit-hint" role="status">{loadNotice}</div>}
         <div className={`canvas-wrap ${tool} ${dragging?"dragging":""}`}>
+          {welcomeVisible&&currentDevice&&<aside className="ha-welcome" aria-labelledby="ha-welcome-title">
+            <button className="welcome-close" aria-label="Dismiss Home Assistant welcome tip" onClick={()=>setWelcomeVisible(false)}>×</button>
+            <span className="eyebrow">HOME ASSISTANT QUICK START</span>
+            <h2 id="ha-welcome-title">Create your Home Assistant floor plan</h2>
+            <ol><li>Place a device inside a room.</li><li>Enter its name and Entity ID.</li><li>Choose <b>Actions → Export for Home Assistant</b>.</li><li>Copy the generated YAML into Home Assistant.</li></ol>
+            <p>Tap toggles the device, hold opens more information, and its room lights up when the entity is on.</p>
+            <div className="welcome-actions"><button className="primary" onClick={()=>{setTool("select");setSelectedDevice(currentDevice.id);document.querySelector<HTMLInputElement>("#ha-entity-id")?.focus()}}>Configure this device</button><button className="secondary" onClick={()=>setWelcomeVisible(false)}>Got it</button><button className="welcome-never" onClick={()=>{localStorage.setItem(WELCOME_KEY,"true");setWelcomeVisible(false)}}>Don&apos;t show again</button></div>
+          </aside>}
           <svg ref={svgRef} viewBox={`0 0 ${project.width} ${project.height}`} onPointerDown={onCanvas} onPointerMove={onPointerMove} onPointerUp={endGesture} onPointerCancel={endGesture} onDoubleClick={finishRoom} aria-label="Floor plan editor">
             <defs><pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#dce4e2" strokeWidth="1"/></pattern></defs>
             <rect width="100%" height="100%" fill="#f5f7f6"/>{!project.image&&<rect width="100%" height="100%" fill="url(#grid)"/>}
@@ -340,7 +357,7 @@ export default function Home() {
           <div className="inspector-section primary-settings">
             <div className="section-heading">Device</div>
             <label>Alias / title<input placeholder="Alarm light" value={currentDevice.ha?.title||""} onChange={e=>updateDeviceHa({title:e.target.value})}/></label>
-            <label>Entity ID<input className={entityError?"invalid":""} aria-invalid={Boolean(entityError)} aria-describedby={entityError?"entity-error":"entity-help"} placeholder={currentDevice.type==="light"?"light.alarm_light":"sensor.room_temperature"} value={currentDevice.ha?.entityId||""} onChange={e=>updateDeviceHa({entityId:e.target.value.trim()})}/><small id="entity-help">Example: <code>light.alarm_light</code></small>{entityError&&<small id="entity-error" className="field-error" role="alert">{entityError}</small>}</label>
+            <label>Entity ID<input id="ha-entity-id" className={entityError?"invalid":""} aria-invalid={Boolean(entityError)} aria-describedby={entityError?"entity-error":"entity-help"} placeholder={currentDevice.type==="light"?"light.alarm_light":"sensor.room_temperature"} value={currentDevice.ha?.entityId||""} onChange={e=>updateDeviceHa({entityId:e.target.value.trim()})}/><small id="entity-help">Example: <code>light.alarm_light</code></small>{entityError&&<small id="entity-error" className="field-error" role="alert">{entityError}</small>}</label>
             <div className="field"><span>Device type</span><b>{currentDevice.type}</b></div>
             <label>Display mode<select className="styled-select" value={currentDevice.ha?.mode || (currentDevice.type==="light"?"icon-and-label":"state-label")} onChange={e=>updateDeviceHa({mode:e.target.value as HaDeviceConfig["mode"]})}><option value="state-icon">State icon</option><option value="state-label">State label</option><option value="icon-and-label">Icon + label</option></select></label>
             <label>Tap action<select className="styled-select" value={currentDevice.ha?.tapAction.action || (currentDevice.type==="light"?"toggle":"more-info")} onChange={e=>updateAction("tapAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
