@@ -3,7 +3,7 @@
 import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import packageJson from "../package.json";
 import { toggleLightForDevice } from "./project-state.mjs";
-import { createDefaultHaDeviceConfig, createDefaultHomeAssistantSettings, inferLightOverlay, migrateProject, upsertDeviceOverlay, validateHaDeviceConfig, validateProjectV2 } from "./project-schema.mjs";
+import { createDefaultHaDeviceConfig, createDefaultHomeAssistantSettings, inferDeviceOverlay, isRoomControllableDevice, migrateProject, upsertDeviceOverlay, validateHaDeviceConfig, validateProjectV2 } from "./project-schema.mjs";
 import "./editor-actions-inspector.css";
 
 type Point = { x: number; y: number };
@@ -179,7 +179,7 @@ export default function Home() {
     if(svgRef.current?.hasPointerCapture(e.pointerId)) svgRef.current.releasePointerCapture(e.pointerId);
     if(gesture.changed){
       setHistory(h=>[...h.slice(-39),gesture.snapshot]);setFuture([]);
-      if (gesture.kind === "device" && gesture.deviceId) setProject(p=>inferLightOverlay(p,gesture.deviceId!) as Project);
+      if (gesture.kind === "device" && gesture.deviceId) setProject(p=>inferDeviceOverlay(p,gesture.deviceId!) as Project);
     } gestureRef.current=null; setDragging(false);
   };
   const onCanvas = (e: PointerEvent<SVGSVGElement>) => {
@@ -230,7 +230,7 @@ export default function Home() {
       const nextHa = {...base,...patch} as HaDeviceConfig;
       const overlays = oldDevice.ha?.entityId && oldDevice.ha.entityId !== nextHa.entityId ? p.homeAssistant.overlays.map(o=>o.entityId===oldDevice.ha?.entityId?{...o,entityId:nextHa.entityId}:o) : p.homeAssistant.overlays;
       const next={...p,devices:p.devices.map(d=>d.id===currentDevice.id?{...d,ha:nextHa}:d),homeAssistant:{...p.homeAssistant,overlays}};
-      return inferLightOverlay(next,currentDevice.id) as Project;
+      return inferDeviceOverlay(next,currentDevice.id) as Project;
     });
   };
   const updateAction = (key: "tapAction"|"holdAction"|"doubleTapAction", action: HaActionName) => {
@@ -371,8 +371,8 @@ export default function Home() {
             <label>Alias / title<input placeholder="Alarm light" value={currentDevice.ha?.title||""} onChange={e=>updateDeviceHa({title:e.target.value})}/></label>
             <label>Entity ID<input id="ha-entity-id" className={entityError?"invalid":""} aria-invalid={Boolean(entityError)} aria-describedby={entityError?"entity-error":"entity-help"} placeholder={currentDevice.type==="light"?"light.alarm_light":currentDevice.type==="plug"?"switch.floor_lamp":"sensor.room_temperature"} value={currentDevice.ha?.entityId||""} onChange={e=>updateDeviceHa({entityId:e.target.value.trim()})}/><small id="entity-help">Example: <code>{currentDevice.type==="plug"?"switch.floor_lamp":"light.alarm_light"}</code></small>{entityError&&<small id="entity-error" className="field-error" role="alert">{entityError}</small>}</label>
             <div className="field"><span>Device type</span><b>{currentDevice.type}</b></div>
-            <label>Display mode<select className="styled-select" value={currentDevice.ha?.mode || (currentDevice.type==="light"?"icon-and-label":"state-label")} onChange={e=>updateDeviceHa({mode:e.target.value as HaDeviceConfig["mode"]})}><option value="state-icon">State icon</option><option value="state-label">State label</option><option value="icon-and-label">Icon + label</option></select></label>
-            <label>Tap action<select className="styled-select" value={currentDevice.ha?.tapAction.action || (currentDevice.type==="light"?"toggle":"more-info")} onChange={e=>updateAction("tapAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
+            <label>Display mode<select className="styled-select" value={currentDevice.ha?.mode || (isRoomControllableDevice(currentDevice.type)?"icon-and-label":"state-label")} onChange={e=>updateDeviceHa({mode:e.target.value as HaDeviceConfig["mode"]})}><option value="state-icon">State icon</option><option value="state-label">State label</option><option value="icon-and-label">Icon + label</option></select></label>
+            <label>Tap action<select className="styled-select" value={currentDevice.ha?.tapAction.action || (isRoomControllableDevice(currentDevice.type)?"toggle":"more-info")} onChange={e=>updateAction("tapAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
           </div>
 
           <details className="inspector-disclosure">
@@ -391,7 +391,7 @@ export default function Home() {
             </div>
           </details>
 
-          {currentDevice.type==="light"&&<details className="inspector-disclosure">
+          {isRoomControllableDevice(currentDevice.type)&&<details className="inspector-disclosure">
             <summary>Room behavior</summary>
             <div className="disclosure-body"><label>Lighting overlay<select className="styled-select" value={currentOverlay?.roomIds[0]||""} onChange={e=>setOverlayRoom(e.target.value)}><option value="">None</option>{project.rooms.map(room=><option key={room.id} value={room.id}>{room.name}{room.id===currentDevice.roomId?" (containing room)":""}</option>)}</select></label></div>
           </details>}
