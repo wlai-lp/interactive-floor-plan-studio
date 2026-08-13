@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
+const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const css = await readFile(new URL("../app/editor-actions-inspector.css", import.meta.url), "utf8");
 
@@ -21,6 +23,9 @@ test("Home Assistant export exposes prerequisites", () => {
   assert.match(page, /startEntitySetup/);
   assert.match(css, /\.export-prerequisite/);
   assert.equal((page.match(/Export for Home Assistant/g) || []).length, 1, "export action should appear only in the Actions menu");
+  assert.match(page, /window\.location\.href="\/home-assistant-export"/);
+  assert.doesNotMatch(layout, /href="\/home-assistant-export"/);
+  assert.doesNotMatch(layout, /Home Assistant Export/);
 });
 
 test("entity inspector prioritizes user-facing fields and progressive disclosure", () => {
