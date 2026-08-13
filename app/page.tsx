@@ -22,7 +22,8 @@ type HaDeviceConfig = {
   doubleTapAction: HaAction;
 };
 type HaOverlay = { id: string; entityId: string; state: "on"; roomIds: string[]; fill: string; opacity: number; blurPx: number; mappingSource?: "inferred"|"explicit" };
-type Device = { id: string; roomId: string; x: number; y: number; type: "light" | "sensor"; ha?: HaDeviceConfig };
+type Device = { id: string; roomId: string; x: number; y: number; type: "light" | "sensor" | "plug"; ha?: HaDeviceConfig };
+type DeleteTarget = { kind: "device" | "room"; id: string; label: string };
 type Project = { schemaVersion: 2; name: string; width: number; height: number; image: string; rooms: Room[]; devices: Device[]; homeAssistant: { background: "rooms-and-uploaded-image"; overlays: HaOverlay[] } };
 type Snapshot = Pick<Project, "name" | "rooms" | "devices" | "homeAssistant">;
 type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
@@ -55,7 +56,7 @@ const DEMO: Project = {
     { id: "living", name: "Living area", color: COLORS[0], light: true, temperature: 72, points: [{x:42,y:58},{x:958,y:58},{x:958,y:570},{x:380,y:570},{x:380,y:306},{x:42,y:306}] },
     { id: "room-1", name: "Room 1", color: COLORS[2], light: false, temperature: 69, points: [{x:42,y:320},{x:365,y:320},{x:365,y:570},{x:42,y:570}] },
   ],
-  devices: [{id:"dev-1",roomId:"living",x:720,y:210,type:"light"},{id:"dev-2",roomId:"room-1",x:205,y:445,type:"sensor"}],
+  devices: [{id:"dev-1",roomId:"living",x:720,y:210,type:"light"},{id:"dev-2",roomId:"room-1",x:205,y:445,type:"plug"}],
   homeAssistant: createDefaultHomeAssistantSettings() as Project["homeAssistant"],
 };
 
@@ -88,11 +89,14 @@ export default function Home() {
     }
   });
   const [project, setProject] = useState<Project>(initialLoad.project);
+  const [welcomeInitially] = useState(() => typeof window !== "undefined" && initialLoad.project.devices.some(device => device.type === "light") && localStorage.getItem(WELCOME_KEY) !== "true");
   const [initialSelection] = useState(() => {
     if (typeof window === "undefined") return { roomId: "living", deviceId: "" };
     const deviceId = new URLSearchParams(window.location.search).get("device");
     const device = initialLoad.project.devices.find(item => item.id === deviceId);
-    return device ? { roomId: device.roomId, deviceId: device.id } : { roomId: "living", deviceId: "" };
+    if (device) return { roomId: device.roomId, deviceId: device.id };
+    const welcomeDevice = welcomeInitially ? initialLoad.project.devices.find(item => item.type === "light") : undefined;
+    return welcomeDevice ? { roomId: welcomeDevice.roomId, deviceId: welcomeDevice.id } : { roomId: "living", deviceId: "" };
   });
   const [loadNotice, setLoadNotice] = useState(initialLoad.notice);
   const [autosaveEnabled, setAutosaveEnabled] = useState(initialLoad.autosave);
@@ -106,7 +110,8 @@ export default function Home() {
   const [saved, setSaved] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
-  const [welcomeVisible, setWelcomeVisible] = useState(() => typeof window !== "undefined" && initialLoad.project.devices.length > 0 && localStorage.getItem(WELCOME_KEY) !== "true");
+  const [welcomeVisible, setWelcomeVisible] = useState(welcomeInitially);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const projectFileRef = useRef<HTMLInputElement>(null);
@@ -115,6 +120,7 @@ export default function Home() {
   const gestureRef = useRef<Gesture | null>(null);
   const current = project.rooms.find(r => r.id === selected);
   const currentDevice = project.devices.find(d => d.id === selectedDevice);
+  const welcomeDevice = project.devices.find(device => device.type === "light");
   const currentBounds = current ? roomBounds(current.points) : null;
   const currentHaErrors = currentDevice?.ha ? validateHaDeviceConfig(currentDevice.ha, "Home Assistant") : [];
   const currentOverlay = currentDevice?.ha?.entityId ? project.homeAssistant.overlays.find(o => o.entityId === currentDevice.ha?.entityId) : undefined;
@@ -237,18 +243,23 @@ export default function Home() {
     if (view !== "playground" || device.type !== "light") return;
     updateProject(p=>toggleLightForDevice(p, device));
   };
-  const deleteSelection = () => {
+  const requestDeleteSelection = () => {
     if (view !== "editor" || tool !== "select") return;
     if (currentDevice) {
-      if (!window.confirm(`Delete ${currentDevice.ha?.title || currentDevice.type} device?`)) return;
-      updateProject(p=>({...p,devices:p.devices.filter(d=>d.id!==currentDevice.id),homeAssistant:{...p.homeAssistant,overlays:currentDevice.ha?.entityId?p.homeAssistant.overlays.filter(o=>o.entityId!==currentDevice.ha?.entityId):p.homeAssistant.overlays}}));
-      setSelectedDevice(""); return;
+      setDeleteTarget({kind:"device",id:currentDevice.id,label:currentDevice.ha?.title || `${currentDevice.type} device`}); return;
     }
-    if (current) {
-      if (!window.confirm(`Delete ${current.name} and all devices in it?`)) return;
-      updateProject(p=>({...p,rooms:p.rooms.filter(r=>r.id!==current.id),devices:p.devices.filter(d=>d.roomId!==current.id),homeAssistant:{...p.homeAssistant,overlays:p.homeAssistant.overlays.map(o=>({...o,roomIds:o.roomIds.filter(id=>id!==current.id)})).filter(o=>o.roomIds.length)}}));
-      setSelected("");
+    if (current) setDeleteTarget({kind:"room",id:current.id,label:current.name});
+  };
+  const confirmDeleteSelection = () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.kind === "device") {
+      updateProject(p=>{const device=p.devices.find(d=>d.id===deleteTarget.id);return {...p,devices:p.devices.filter(d=>d.id!==deleteTarget.id),homeAssistant:{...p.homeAssistant,overlays:device?.ha?.entityId?p.homeAssistant.overlays.filter(o=>o.entityId!==device.ha?.entityId):p.homeAssistant.overlays}}});
+      setSelectedDevice("");
+    } else {
+      updateProject(p=>({...p,rooms:p.rooms.filter(r=>r.id!==deleteTarget.id),devices:p.devices.filter(d=>d.roomId!==deleteTarget.id),homeAssistant:{...p.homeAssistant,overlays:p.homeAssistant.overlays.map(o=>({...o,roomIds:o.roomIds.filter(id=>id!==deleteTarget.id)})).filter(o=>o.roomIds.length)}}));
+      setSelected(""); setSelectedDevice("");
     }
+    setDeleteTarget(null);
   };
   const closeActions = (returnFocus = false) => { setActionsOpen(false); if (returnFocus) window.setTimeout(()=>actionsButtonRef.current?.focus(),0); };
   const runAction = (fn: () => void) => { closeActions(); fn(); };
@@ -269,11 +280,12 @@ export default function Home() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
+      if (event.key === "Escape" && deleteTarget) { event.preventDefault(); setDeleteTarget(null); return; }
       if (event.key === "Escape" && actionsOpen) { event.preventDefault(); closeActions(true); return; }
       if (event.key !== "Delete" && event.key !== "Backspace") return;
       if (target?.matches("input, textarea, select, [contenteditable=true]")) return;
       if (view !== "editor" || tool !== "select" || (!current && !currentDevice)) return;
-      event.preventDefault(); deleteSelection();
+      event.preventDefault(); requestDeleteSelection();
     };
     const onPointerDown = (event: MouseEvent) => { if (actionsOpen && !actionsRef.current?.contains(event.target as Node)) closeActions(); };
     window.addEventListener("keydown",onKeyDown); window.addEventListener("mousedown",onPointerDown);
@@ -319,14 +331,14 @@ export default function Home() {
         <div className="stage-top"><div><span className="eyebrow">{view==="editor"?"SEMANTIC EDITOR":"INTERACTIVE PREVIEW"}</span>{view==="editor"?<input className="project-name" aria-label="Project name" value={project.name} onChange={e=>{setSaved(false);setProject(p=>({...p,name:e.target.value}))}} onBlur={()=>setProject(p=>({...p,name:p.name.trim()||"Untitled project"}))}/>:<h1>{project.name}</h1>}</div></div>
         {loadNotice&&<div className="hint edit-hint" role="status">{loadNotice}</div>}
         <div className={`canvas-wrap ${tool} ${dragging?"dragging":""}`}>
-          {welcomeVisible&&currentDevice&&<aside className="ha-welcome" aria-labelledby="ha-welcome-title">
+          {welcomeVisible&&welcomeDevice&&<div className={`ha-welcome-anchor ${welcomeDevice.x/project.width<.5?"place-right":"place-left"}`} style={{left:`${welcomeDevice.x/project.width*100}%`,top:`${welcomeDevice.y/project.height*100}%`}}><aside className="ha-welcome" aria-labelledby="ha-welcome-title">
             <button className="welcome-close" aria-label="Dismiss Home Assistant welcome tip" onClick={()=>setWelcomeVisible(false)}>×</button>
             <span className="eyebrow">HOME ASSISTANT QUICK START</span>
             <h2 id="ha-welcome-title">Create your Home Assistant floor plan</h2>
             <ol><li>Place a device inside a room.</li><li>Enter its name and Entity ID.</li><li>Choose <b>Actions → Export for Home Assistant</b>.</li><li>Copy the generated YAML into Home Assistant.</li></ol>
             <p>Tap toggles the device, hold opens more information, and its room lights up when the entity is on.</p>
-            <div className="welcome-actions"><button className="primary" onClick={()=>{setTool("select");setSelectedDevice(currentDevice.id);document.querySelector<HTMLInputElement>("#ha-entity-id")?.focus()}}>Configure this device</button><button className="secondary" onClick={()=>setWelcomeVisible(false)}>Got it</button><button className="welcome-never" onClick={()=>{localStorage.setItem(WELCOME_KEY,"true");setWelcomeVisible(false)}}>Don&apos;t show again</button></div>
-          </aside>}
+            <div className="welcome-actions"><button className="primary" onClick={()=>{setTool("select");setSelected(welcomeDevice.roomId);setSelectedDevice(welcomeDevice.id);document.querySelector<HTMLInputElement>("#ha-entity-id")?.focus()}}>Configure this device</button><button className="secondary" onClick={()=>setWelcomeVisible(false)}>Got it</button><button className="welcome-never" onClick={()=>{localStorage.setItem(WELCOME_KEY,"true");setWelcomeVisible(false)}}>Don&apos;t show again</button></div>
+          </aside></div>}
           <svg ref={svgRef} viewBox={`0 0 ${project.width} ${project.height}`} onPointerDown={onCanvas} onPointerMove={onPointerMove} onPointerUp={endGesture} onPointerCancel={endGesture} onDoubleClick={finishRoom} aria-label="Floor plan editor">
             <defs><pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#dce4e2" strokeWidth="1"/></pattern></defs>
             <rect width="100%" height="100%" fill="#f5f7f6"/>{!project.image&&<rect width="100%" height="100%" fill="url(#grid)"/>}
@@ -341,7 +353,7 @@ export default function Home() {
               {current.points.map((p,i)=><circle key={i} className="vertex-handle" cx={p.x} cy={p.y} r="8" onPointerDown={e=>beginGesture(e,current,"vertex",{vertexIndex:i})}/>) }
             </g>}
             {draft.length>0&&<><polyline className="draft-line" points={pointsAttr(draft)}/>{draft.map((p,i)=><circle className="draft-point" key={i} cx={p.x} cy={p.y} r="7"/> )}</>}
-            {project.devices.map(d=>{const room=project.rooms.find(r=>r.id===d.roomId);const interactive=view==="playground"&&d.type==="light";const draggable=view==="editor"&&tool==="select";return <g key={d.id} className={`device-dot ${interactive?"interactive":""} ${draggable?"draggable":""} ${selectedDevice===d.id?"selected":""} ${room?.light?"on":"off"}`} transform={`translate(${d.x} ${d.y})`} role={interactive?"button":undefined} tabIndex={interactive?0:undefined} aria-label={interactive?`${room?.name||"Room"} light: ${room?.light?"on":"off"}`:undefined} aria-pressed={interactive?Boolean(room?.light):undefined} onPointerDown={e=>beginDeviceGesture(e,d)} onKeyDown={e=>{if(interactive&&(e.key==="Enter"||e.key===" ")){e.preventDefault();e.stopPropagation();activateDevice(d)}}}><circle className="device-hit-area" r="24"/><circle className="device-face" r="20"/>{d.type==="light"?<g className="device-icon device-icon-light" aria-hidden="true"><circle r="4"/><path d="M0-12v4M0 8v4M-12 0h4M8 0h4M-8.5-8.5l2.9 2.9M5.6 5.6l2.9 2.9M8.5-8.5L5.6-5.6M-5.6 5.6l-2.9 2.9"/></g>:<g className="device-icon device-icon-sensor" aria-hidden="true"><path d="M-3-10a3 3 0 0 1 6 0V3.2a7 7 0 1 1-6 0V-10Z"/><path d="M0-5V7"/><circle cy="8" r="2.5"/></g>}</g>})}
+            {project.devices.map(d=>{const room=project.rooms.find(r=>r.id===d.roomId);const interactive=view==="playground"&&d.type==="light";const draggable=view==="editor"&&tool==="select";return <g key={d.id} className={`device-dot ${interactive?"interactive":""} ${draggable?"draggable":""} ${selectedDevice===d.id?"selected":""} ${welcomeVisible&&welcomeDevice?.id===d.id?"tutorial-target":""} ${room?.light?"on":"off"}`} transform={`translate(${d.x} ${d.y})`} role={interactive?"button":undefined} tabIndex={interactive?0:undefined} aria-label={interactive?`${room?.name||"Room"} light: ${room?.light?"on":"off"}`:undefined} aria-pressed={interactive?Boolean(room?.light):undefined} onPointerDown={e=>beginDeviceGesture(e,d)} onKeyDown={e=>{if(interactive&&(e.key==="Enter"||e.key===" ")){e.preventDefault();e.stopPropagation();activateDevice(d)}}}><circle className="device-hit-area" r="24"/><circle className="device-face" r="20"/>{d.type==="light"?<g className="device-icon device-icon-light" aria-hidden="true"><circle r="4"/><path d="M0-12v4M0 8v4M-12 0h4M8 0h4M-8.5-8.5l2.9 2.9M5.6 5.6l2.9 2.9M8.5-8.5L5.6-5.6M-5.6 5.6l-2.9 2.9"/></g>:d.type==="plug"?<g className="device-icon device-icon-plug" aria-hidden="true"><path d="M-7-3h14v5a7 7 0 0 1-14 0v-5ZM-4-9v6M4-9v6M0 9v4"/></g>:<g className="device-icon device-icon-sensor" aria-hidden="true"><path d="M-3-10a3 3 0 0 1 6 0V3.2a7 7 0 1 1-6 0V-10Z"/><path d="M0-5V7"/><circle cy="8" r="2.5"/></g>}</g>})}
           </svg>
           {tool==="draw"&&<div className="hint">Click around a room · Double-click to finish · {draft.length} points</div>}
           {tool==="select"&&current&&view==="editor"&&!dragging&&<div className="hint edit-hint">Drag rooms or devices · Use handles to resize and adjust corners</div>}
@@ -351,13 +363,13 @@ export default function Home() {
       </section>
 
       <aside className="inspector">
-        <div className="inspector-title"><div><span className="eyebrow">INSPECTOR</span><h2>{currentDevice ? `${currentDevice.type === "light" ? "Light" : "Sensor"} device` : current?.name || "Nothing selected"}</h2></div><span className="color-dot" style={{background:current?.color||"#ccd5d2"}}/></div>
+        <div className="inspector-title"><div><span className="eyebrow">INSPECTOR</span><h2>{currentDevice ? `${currentDevice.type === "light" ? "Light" : currentDevice.type === "plug" ? "Power plug" : "Sensor"} device` : current?.name || "Nothing selected"}</h2></div><span className="color-dot" style={{background:current?.color||"#ccd5d2"}}/></div>
         {currentDevice ? <>
           <p className="inspector-helper">Configure the Home Assistant entity represented by this device.</p>
           <div className="inspector-section primary-settings">
             <div className="section-heading">Device</div>
             <label>Alias / title<input placeholder="Alarm light" value={currentDevice.ha?.title||""} onChange={e=>updateDeviceHa({title:e.target.value})}/></label>
-            <label>Entity ID<input id="ha-entity-id" className={entityError?"invalid":""} aria-invalid={Boolean(entityError)} aria-describedby={entityError?"entity-error":"entity-help"} placeholder={currentDevice.type==="light"?"light.alarm_light":"sensor.room_temperature"} value={currentDevice.ha?.entityId||""} onChange={e=>updateDeviceHa({entityId:e.target.value.trim()})}/><small id="entity-help">Example: <code>light.alarm_light</code></small>{entityError&&<small id="entity-error" className="field-error" role="alert">{entityError}</small>}</label>
+            <label>Entity ID<input id="ha-entity-id" className={entityError?"invalid":""} aria-invalid={Boolean(entityError)} aria-describedby={entityError?"entity-error":"entity-help"} placeholder={currentDevice.type==="light"?"light.alarm_light":currentDevice.type==="plug"?"switch.floor_lamp":"sensor.room_temperature"} value={currentDevice.ha?.entityId||""} onChange={e=>updateDeviceHa({entityId:e.target.value.trim()})}/><small id="entity-help">Example: <code>{currentDevice.type==="plug"?"switch.floor_lamp":"light.alarm_light"}</code></small>{entityError&&<small id="entity-error" className="field-error" role="alert">{entityError}</small>}</label>
             <div className="field"><span>Device type</span><b>{currentDevice.type}</b></div>
             <label>Display mode<select className="styled-select" value={currentDevice.ha?.mode || (currentDevice.type==="light"?"icon-and-label":"state-label")} onChange={e=>updateDeviceHa({mode:e.target.value as HaDeviceConfig["mode"]})}><option value="state-icon">State icon</option><option value="state-label">State label</option><option value="icon-and-label">Icon + label</option></select></label>
             <label>Tap action<select className="styled-select" value={currentDevice.ha?.tapAction.action || (currentDevice.type==="light"?"toggle":"more-info")} onChange={e=>updateAction("tapAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
@@ -390,7 +402,7 @@ export default function Home() {
           </details>
 
           {currentHaErrors.filter(error=>error!==entityError).length>0&&<div className="validation-summary" role="status"><b>Home Assistant validation</b>{currentHaErrors.filter(error=>error!==entityError).map(error=><p key={error}>{error}</p>)}</div>}
-          <div className="danger-zone"><div><b>Danger zone</b><p>Deleting removes the device and its associated overlay mapping.</p></div><button className="danger-button" onClick={deleteSelection}>Delete device</button></div>
+          <div className="danger-zone"><div><b>Danger zone</b><p>Deleting removes the device and its associated overlay mapping.</p></div><button className="danger-button" onClick={requestDeleteSelection}>Delete device</button></div>
         </> : current ? <>
           <div className="edit-callout"><b>Edit shape</b><p>Drag the room to move it. Use square handles to resize or round handles to adjust individual vertices.</p></div>
           <label>Room name<input value={current.name} onChange={e=>setProject(p=>({...p,rooms:p.rooms.map(r=>r.id===current.id?{...r,name:e.target.value}:r)}))} onBlur={remember}/></label>
@@ -400,9 +412,15 @@ export default function Home() {
           <button className={`toggle-row ${current.light?"on":""}`} onClick={()=>updateProject(p=>({...p,rooms:p.rooms.map(r=>r.id===current.id?{...r,light:!r.light}:r)}))}><span><i>☼</i> Light</span><b>{current.light?"ON":"OFF"}</b></button>
           <label>Temperature <span className="range-value">{current.temperature}°F</span><input type="range" min="55" max="85" value={current.temperature} onChange={e=>setProject(p=>({...p,rooms:p.rooms.map(r=>r.id===current.id?{...r,temperature:+e.target.value}:r)}))}/></label>
           <div className="section-title">ROOM COLOR</div><div className="swatches">{COLORS.map(c=><button key={c} className={current.color===c?"active":""} style={{background:c}} onClick={()=>updateProject(p=>({...p,rooms:p.rooms.map(r=>r.id===current.id?{...r,color:c}:r)}))}/>)}</div>
-          <button className="danger" onClick={deleteSelection}>Delete room and its devices</button>
+          <button className="danger" onClick={requestDeleteSelection}>Delete room and its devices</button>
         </>:<div className="inspector-empty">Select a room to edit its shape, label, status, color, and devices.</div>}
       </aside>
     </section>
+    {deleteTarget&&<div className="confirmation-backdrop" onPointerDown={event=>{if(event.target===event.currentTarget)setDeleteTarget(null)}}><section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-description">
+      <span className="confirmation-icon" aria-hidden="true">!</span><span className="eyebrow">CONFIRM DELETION</span>
+      <h2 id="delete-title">Delete {deleteTarget.label}?</h2>
+      <p id="delete-description">{deleteTarget.kind==="room"?"This removes the room, every device inside it, and associated overlay mappings.":"This removes the device and its associated overlay mapping."} This action can be undone from the editor.</p>
+      <div className="confirmation-actions"><button className="secondary" autoFocus onClick={()=>setDeleteTarget(null)}>Cancel</button><button className="confirm-delete" onClick={confirmDeleteSelection}>Delete {deleteTarget.kind}</button></div>
+    </section></div>}
   </main>;
 }
