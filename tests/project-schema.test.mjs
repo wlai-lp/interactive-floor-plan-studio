@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createDefaultHaDeviceConfig,
   containingRoomIds,
+  inferDeviceOverlay,
   inferLightOverlay,
   migrateProject,
   upsertDeviceOverlay,
@@ -40,6 +41,28 @@ test("light defaults match the minimal Home Assistant MVP flow", () => {
 test("power plug is a supported device type", () => {
   const { project } = migrateProject({...v1, devices:[{...v1.devices[0], id:"plug-1", type:"plug"}]});
   assert.deepEqual(validateProjectV2(project), []);
+  const config = createDefaultHaDeviceConfig("plug");
+  assert.equal(config.mode, "icon-and-label");
+  assert.equal(config.tapAction.action, "toggle");
+  assert.equal(config.holdAction.action, "more-info");
+});
+
+test("power plug receives the same room overlay contract as a light", () => {
+  const { project } = migrateProject({...v1, devices:[{...v1.devices[0], id:"plug-1", type:"plug"}]});
+  project.devices[0].ha = {...createDefaultHaDeviceConfig("plug"), entityId:"switch.floor_lamp", title:"Floor lamp"};
+  const inferred = inferDeviceOverlay(project, "plug-1");
+  assert.equal(inferred.homeAssistant.overlays[0].entityId, "switch.floor_lamp");
+  assert.deepEqual(inferred.homeAssistant.overlays[0].roomIds, ["living"]);
+  const explicit = upsertDeviceOverlay(inferred, "plug-1", "living");
+  assert.equal(explicit.homeAssistant.overlays[0].mappingSource, "explicit");
+});
+
+test("upgrades unreleased passive plug defaults to controllable defaults", () => {
+  const passive = {...v1, devices:[{...v1.devices[0], id:"plug-1", type:"plug", ha:{...createDefaultHaDeviceConfig("sensor"), entityId:"switch.floor_lamp", title:"Floor lamp"}}]};
+  const { project } = migrateProject(passive);
+  assert.equal(project.devices[0].ha.mode, "icon-and-label");
+  assert.equal(project.devices[0].ha.tapAction.action, "toggle");
+  assert.equal(project.devices[0].ha.holdAction.action, "more-info");
 });
 
 test("infers a light overlay from device geometry", () => {
