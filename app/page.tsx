@@ -4,7 +4,7 @@ import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from 
 import packageJson from "../package.json";
 import { toggleLightForDevice } from "./project-state.mjs";
 import { createDefaultHaDeviceConfig, createDefaultHomeAssistantSettings, migrateProject, upsertDeviceOverlay, validateHaDeviceConfig, validateProjectV2 } from "./project-schema.mjs";
-import "./issue-26.css";
+import "./editor-actions-inspector.css";
 
 type Point = { x: number; y: number };
 type Room = { id: string; name: string; points: Point[]; color: string; light: boolean; temperature: number };
