@@ -112,6 +112,7 @@ export default function Home() {
   const currentOverlay = currentDevice?.ha?.entityId ? project.homeAssistant.overlays.find(o => o.entityId === currentDevice.ha?.entityId) : undefined;
   const entityError = currentHaErrors.find(error => /entity/i.test(error));
   const hasHaExport = project.devices.some(device => Boolean(device.ha?.entityId));
+  const entitySetupDevice = project.devices.find(device => !device.ha?.entityId) || project.devices[0];
 
   const stats = useMemo(() => ({rooms: project.rooms.length, devices: project.devices.length}), [project]);
   const snapshot = (): Snapshot => clone({name: project.name, rooms: project.rooms, devices: project.devices, homeAssistant: project.homeAssistant});
@@ -242,6 +243,12 @@ export default function Home() {
   };
   const closeActions = (returnFocus = false) => { setActionsOpen(false); if (returnFocus) window.setTimeout(()=>actionsButtonRef.current?.focus(),0); };
   const runAction = (fn: () => void) => { closeActions(); fn(); };
+  const startEntitySetup = () => {
+    closeActions(); setView("editor");
+    if (entitySetupDevice) { setTool("select"); setSelected(entitySetupDevice.roomId); setSelectedDevice(entitySetupDevice.id); return; }
+    const firstRoom = project.rooms[0];
+    if (firstRoom) { setSelected(firstRoom.id); setSelectedDevice(""); setTool("device"); }
+  };
 
   useEffect(() => {
     if (!autosaveEnabled) return;
@@ -283,7 +290,8 @@ export default function Home() {
             <div className="menu-group-label">Export</div>
             <button role="menuitem" onClick={()=>runAction(()=>download("floor-plan.json",JSON.stringify(project,null,2)))}>Export project</button>
             <button role="menuitem" disabled={!project.rooms.length} title={!project.rooms.length?"Trace at least one room first":undefined} onClick={()=>runAction(exportSvg)}>Export SVG</button>
-            <button role="menuitem" disabled={!hasHaExport} title={!hasHaExport?"Configure at least one Home Assistant entity first":undefined} onClick={()=>runAction(()=>{window.location.href="/ha-export"})}>Export for Home Assistant</button>
+            <button role="menuitem" disabled={!hasHaExport} onClick={()=>runAction(()=>{window.location.href="/ha-export"})}>Export for Home Assistant</button>
+            {!hasHaExport&&<div className="export-prerequisite" role="note"><span>{entitySetupDevice?"Configure an Entity ID first.":"Add a device and configure its Entity ID first."}</span>{(entitySetupDevice||project.rooms.length>0)&&<button type="button" className="prerequisite-action" onClick={startEntitySetup}>{entitySetupDevice?"Select device":"Add a device"}</button>}</div>}
           </div>}
         </div>
       </div>
