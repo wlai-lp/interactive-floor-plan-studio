@@ -37,6 +37,11 @@ test("light defaults match the minimal Home Assistant MVP flow", () => {
   assert.equal(config.mode, "icon-and-label");
 });
 
+test("power plug is a supported device type", () => {
+  const { project } = migrateProject({...v1, devices:[{...v1.devices[0], id:"plug-1", type:"plug"}]});
+  assert.deepEqual(validateProjectV2(project), []);
+});
+
 test("infers a light overlay from device geometry", () => {
   const { project } = migrateProject(v1);
   project.devices[0].ha = { ...createDefaultHaDeviceConfig("light"), entityId: "light.alarm_light", title: "Alarm light" };
