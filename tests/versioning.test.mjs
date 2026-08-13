@@ -68,7 +68,7 @@ test("editor device gesture is separate from playground activation", async () =>
   assert.match(page, /view !== "editor" \|\| tool !== "select"/);
   assert.match(page, /x:clamp\(d\.x\+dx,0,project\.width\)/);
   assert.match(page, /if\(gesture\.changed\)\{/);
-  assert.match(page, /inferLightOverlay/);
+  assert.match(page, /inferDeviceOverlay/);
   assert.match(styles, /\.device-dot\.draggable\{cursor:grab\}/);
 });
 
