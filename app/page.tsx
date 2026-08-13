@@ -290,7 +290,7 @@ export default function Home() {
             <div className="menu-group-label">Export</div>
             <button role="menuitem" onClick={()=>runAction(()=>download("floor-plan.json",JSON.stringify(project,null,2)))}>Export project</button>
             <button role="menuitem" disabled={!project.rooms.length} title={!project.rooms.length?"Trace at least one room first":undefined} onClick={()=>runAction(exportSvg)}>Export SVG</button>
-            <button role="menuitem" disabled={!hasHaExport} onClick={()=>runAction(()=>{window.location.href="/ha-export"})}>Export for Home Assistant</button>
+            <button role="menuitem" disabled={!hasHaExport} onClick={()=>runAction(()=>{window.location.href="/home-assistant-export"})}>Export for Home Assistant</button>
             {!hasHaExport&&<div className="export-prerequisite" role="note"><span>{entitySetupDevice?"Configure an Entity ID first.":"Add a device and configure its Entity ID first."}</span>{(entitySetupDevice||project.rooms.length>0)&&<button type="button" className="prerequisite-action" onClick={startEntitySetup}>{entitySetupDevice?"Select device":"Add a device"}</button>}</div>}
           </div>}
         </div>
