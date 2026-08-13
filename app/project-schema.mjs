@@ -20,7 +20,7 @@ export function createDefaultHaDeviceConfig(type = "light") {
     icon: "",
     iconSizePx: 40,
     tapAction: { action: type === "light" ? "toggle" : "more-info" },
-    holdAction: { action: "none" },
+    holdAction: { action: type === "light" ? "more-info" : "none" },
     doubleTapAction: { action: "none" },
   };
 }
@@ -66,7 +66,7 @@ function normalizeHaDeviceConfig(value, type) {
     icon: typeof value.icon === "string" ? value.icon.trim() : "",
     iconSizePx: typeof value.iconSizePx === "number" ? value.iconSizePx : defaults.iconSizePx,
     tapAction: normalizeAction(value.tapAction, defaults.tapAction.action),
-    holdAction: normalizeAction(value.holdAction),
+    holdAction: normalizeAction(value.holdAction, defaults.holdAction.action),
     doubleTapAction: normalizeAction(value.doubleTapAction),
   };
 }
@@ -81,6 +81,57 @@ function normalizeOverlay(value) {
     fill: typeof value.fill === "string" ? value.fill : "#ffd166",
     opacity: typeof value.opacity === "number" ? value.opacity : 0.35,
     blurPx: typeof value.blurPx === "number" ? value.blurPx : 8,
+    mappingSource: value.mappingSource === "inferred" ? "inferred" : "explicit",
+  };
+}
+
+export function pointInRoom(point, room) {
+  const points = Array.isArray(room?.points) ? room.points : [];
+  if (points.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const a = points[i];
+    const b = points[j];
+    const crosses = ((a.y > point.y) !== (b.y > point.y)) &&
+      point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+export function containingRoomIds(project, device) {
+  return (project.rooms || []).filter(room => pointInRoom(device, room)).map(room => room.id);
+}
+
+export function inferLightOverlay(project, deviceId) {
+  const device = project.devices.find(item => item.id === deviceId);
+  if (!device || device.type !== "light") return project;
+  const matches = containingRoomIds(project, device);
+  const existing = device.ha?.entityId
+    ? project.homeAssistant.overlays.find(overlay => overlay.entityId === device.ha.entityId)
+    : undefined;
+  if (existing?.mappingSource === "explicit") return project;
+
+  const otherOverlays = project.homeAssistant.overlays.filter(overlay => overlay.entityId !== device.ha?.entityId);
+  if (matches.length !== 1 || !device.ha?.entityId) {
+    return { ...project, homeAssistant: { ...project.homeAssistant, overlays: otherOverlays } };
+  }
+
+  const roomId = matches[0];
+  const overlay = {
+    id: existing?.id || `overlay-${device.id}`,
+    entityId: device.ha.entityId,
+    state: "on",
+    roomIds: [roomId],
+    fill: existing?.fill || "#ffd166",
+    opacity: existing?.opacity ?? 0.35,
+    blurPx: existing?.blurPx ?? 8,
+    mappingSource: "inferred",
+  };
+  return {
+    ...project,
+    devices: project.devices.map(item => item.id === device.id ? { ...item, roomId } : item),
+    homeAssistant: { ...project.homeAssistant, overlays: [...otherOverlays, overlay] },
   };
 }
 
@@ -190,6 +241,7 @@ export function upsertDeviceOverlay(project, deviceId, roomId) {
       fill: "#ffd166",
       opacity: 0.35,
       blurPx: 8,
+      mappingSource: "explicit",
     });
   }
   return { ...project, homeAssistant: { ...project.homeAssistant, overlays } };
