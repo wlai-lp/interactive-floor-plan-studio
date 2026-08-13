@@ -34,6 +34,24 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <a
+          href="/home-assistant-export"
+          style={{
+            position: "fixed",
+            right: 18,
+            bottom: 18,
+            zIndex: 1000,
+            padding: "10px 14px",
+            borderRadius: 999,
+            background: "#17211f",
+            color: "white",
+            textDecoration: "none",
+            fontWeight: 700,
+            boxShadow: "0 8px 24px rgba(0,0,0,.18)",
+          }}
+        >
+          Home Assistant Export
+        </a>
         {children}
       </body>
     </html>
