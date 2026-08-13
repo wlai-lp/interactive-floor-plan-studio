@@ -20,6 +20,7 @@ test("Home Assistant export exposes prerequisites", () => {
   assert.match(page, />Select device</);
   assert.match(page, /startEntitySetup/);
   assert.match(css, /\.export-prerequisite/);
+  assert.equal((page.match(/Export for Home Assistant/g) || []).length, 1, "export action should appear only in the Actions menu");
 });
 
 test("entity inspector prioritizes user-facing fields and progressive disclosure", () => {
