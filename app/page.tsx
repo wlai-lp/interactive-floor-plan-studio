@@ -4,6 +4,7 @@ import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from 
 import packageJson from "../package.json";
 import { toggleLightForDevice } from "./project-state.mjs";
 import { createDefaultHaDeviceConfig, createDefaultHomeAssistantSettings, migrateProject, upsertDeviceOverlay, validateHaDeviceConfig, validateProjectV2 } from "./project-schema.mjs";
+import "./issue-26.css";
 
 type Point = { x: number; y: number };
 type Room = { id: string; name: string; points: Point[]; color: string; light: boolean; temperature: number };
@@ -45,8 +46,7 @@ const HANDLES: ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 const ACTIONS: HaActionName[] = ["none", "more-info", "toggle"];
 const STORAGE_KEY = "floor-plan-studio-project";
 const V1_BACKUP_KEY = "floor-plan-studio-project:v1-backup";
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ||
-  (process.env.NODE_ENV === "development" ? "0.0.0-dev" : packageJson.version);
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || (process.env.NODE_ENV === "development" ? "0.0.0-dev" : packageJson.version);
 const DEMO: Project = {
   schemaVersion: 2,
   name: "Sample project", width: 1000, height: 620, image: "",
@@ -98,15 +98,20 @@ export default function Home() {
   const [future, setFuture] = useState<Snapshot[]>([]);
   const [saved, setSaved] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const projectFileRef = useRef<HTMLInputElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const current = project.rooms.find(r => r.id === selected);
   const currentDevice = project.devices.find(d => d.id === selectedDevice);
   const currentBounds = current ? roomBounds(current.points) : null;
   const currentHaErrors = currentDevice?.ha ? validateHaDeviceConfig(currentDevice.ha, "Home Assistant") : [];
   const currentOverlay = currentDevice?.ha?.entityId ? project.homeAssistant.overlays.find(o => o.entityId === currentDevice.ha?.entityId) : undefined;
+  const entityError = currentHaErrors.find(error => /entity/i.test(error));
+  const hasHaExport = project.devices.some(device => Boolean(device.ha?.entityId));
 
   const stats = useMemo(() => ({rooms: project.rooms.length, devices: project.devices.length}), [project]);
   const snapshot = (): Snapshot => clone({name: project.name, rooms: project.rooms, devices: project.devices, homeAssistant: project.homeAssistant});
@@ -214,13 +219,9 @@ export default function Home() {
   };
   const updateAction = (key: "tapAction"|"holdAction"|"doubleTapAction", action: HaActionName) => {
     if (!currentDevice) return;
-    const base = currentDevice.ha || createDefaultHaDeviceConfig(currentDevice.type) as HaDeviceConfig;
     updateDeviceHa({[key]:{action}} as Partial<HaDeviceConfig>);
   };
-  const setOverlayRoom = (roomId: string) => {
-    if (!currentDevice) return;
-    updateProject(p=>upsertDeviceOverlay(p,currentDevice.id,roomId) as Project);
-  };
+  const setOverlayRoom = (roomId: string) => { if (currentDevice) updateProject(p=>upsertDeviceOverlay(p,currentDevice.id,roomId) as Project); };
   const activateDevice = (device: Device) => {
     setSelected(device.roomId);
     if (view !== "playground" || device.type !== "light") return;
@@ -229,15 +230,19 @@ export default function Home() {
   const deleteSelection = () => {
     if (view !== "editor" || tool !== "select") return;
     if (currentDevice) {
+      if (!window.confirm(`Delete ${currentDevice.ha?.title || currentDevice.type} device?`)) return;
       updateProject(p=>({...p,devices:p.devices.filter(d=>d.id!==currentDevice.id),homeAssistant:{...p.homeAssistant,overlays:currentDevice.ha?.entityId?p.homeAssistant.overlays.filter(o=>o.entityId!==currentDevice.ha?.entityId):p.homeAssistant.overlays}}));
-      setSelectedDevice("");
-      return;
+      setSelectedDevice(""); return;
     }
     if (current) {
+      if (!window.confirm(`Delete ${current.name} and all devices in it?`)) return;
       updateProject(p=>({...p,rooms:p.rooms.filter(r=>r.id!==current.id),devices:p.devices.filter(d=>d.roomId!==current.id),homeAssistant:{...p.homeAssistant,overlays:p.homeAssistant.overlays.map(o=>({...o,roomIds:o.roomIds.filter(id=>id!==current.id)})).filter(o=>o.roomIds.length)}}));
       setSelected("");
     }
   };
+  const closeActions = (returnFocus = false) => { setActionsOpen(false); if (returnFocus) window.setTimeout(()=>actionsButtonRef.current?.focus(),0); };
+  const runAction = (fn: () => void) => { closeActions(); fn(); };
+
   useEffect(() => {
     if (!autosaveEnabled) return;
     const errors = validateProjectV2(project);
@@ -248,21 +253,40 @@ export default function Home() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
+      if (event.key === "Escape" && actionsOpen) { event.preventDefault(); closeActions(true); return; }
       if (event.key !== "Delete" && event.key !== "Backspace") return;
       if (target?.matches("input, textarea, select, [contenteditable=true]")) return;
       if (view !== "editor" || tool !== "select" || (!current && !currentDevice)) return;
-      event.preventDefault();
-      deleteSelection();
+      event.preventDefault(); deleteSelection();
     };
-    window.addEventListener("keydown",onKeyDown);
-    return () => window.removeEventListener("keydown",onKeyDown);
+    const onPointerDown = (event: MouseEvent) => { if (actionsOpen && !actionsRef.current?.contains(event.target as Node)) closeActions(); };
+    window.addEventListener("keydown",onKeyDown); window.addEventListener("mousedown",onPointerDown);
+    return () => { window.removeEventListener("keydown",onKeyDown); window.removeEventListener("mousedown",onPointerDown); };
   });
 
   return <main className="app-shell">
     <header className="topbar">
       <a className="brand" href="#"><span className="brandmark">◇</span><span>Floor Plan <b>Studio</b></span><span className="beta">LOCAL</span></a>
       <div className="view-switch" role="tablist"><button className={view==="editor"?"active":""} onClick={()=>setView("editor")}>Editor</button><button className={view==="playground"?"active":""} onClick={()=>setView("playground")}>Playground</button></div>
-      <div className="header-actions"><span className="privacy"><i/> Private on this device</span><button className="secondary" onClick={save}>{saved?"Auto-saved ✓":"Save locally"}</button><input ref={projectFileRef} type="file" accept="application/json,.json" onChange={importProject} style={{display:"none"}}/><button className="secondary" onClick={()=>projectFileRef.current?.click()}>Import project</button><button className="primary" onClick={()=>download("floor-plan.json",JSON.stringify(project,null,2))}>Export project</button></div>
+      <div className="header-actions">
+        <span className="privacy"><i/> Private on this device</span>
+        <span className="autosave-status" role="status" aria-live="polite">{saved?"Auto-saved ✓":"Auto-save on"}</span>
+        <input ref={projectFileRef} type="file" accept="application/json,.json" onChange={importProject} hidden/>
+        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={upload} hidden/>
+        <div className="actions-menu" ref={actionsRef}>
+          <button ref={actionsButtonRef} className="secondary actions-trigger" aria-haspopup="menu" aria-expanded={actionsOpen} onClick={()=>setActionsOpen(open=>!open)}>Actions <span aria-hidden="true">▾</span></button>
+          {actionsOpen&&<div className="actions-popover" role="menu" aria-label="Project actions">
+            <div className="menu-group-label">Import</div>
+            <button role="menuitem" onClick={()=>runAction(()=>fileRef.current?.click())}>Upload floor-plan image</button>
+            <button role="menuitem" onClick={()=>runAction(()=>projectFileRef.current?.click())}>Import project</button>
+            <div className="menu-separator"/>
+            <div className="menu-group-label">Export</div>
+            <button role="menuitem" onClick={()=>runAction(()=>download("floor-plan.json",JSON.stringify(project,null,2)))}>Export project</button>
+            <button role="menuitem" disabled={!project.rooms.length} title={!project.rooms.length?"Trace at least one room first":undefined} onClick={()=>runAction(exportSvg)}>Export SVG</button>
+            <button role="menuitem" disabled={!hasHaExport} title={!hasHaExport?"Configure at least one Home Assistant entity first":undefined} onClick={()=>runAction(()=>{window.location.href="/ha-export"})}>Export for Home Assistant</button>
+          </div>}
+        </div>
+      </div>
     </header>
 
     <section className="workspace">
@@ -275,7 +299,7 @@ export default function Home() {
       </aside>
 
       <section className="stage-column">
-        <div className="stage-top"><div><span className="eyebrow">{view==="editor"?"SEMANTIC EDITOR":"INTERACTIVE PREVIEW"}</span>{view==="editor"?<input className="project-name" aria-label="Project name" value={project.name} onChange={e=>{setSaved(false);setProject(p=>({...p,name:e.target.value}))}} onBlur={()=>setProject(p=>({...p,name:p.name.trim()||"Untitled project"}))}/>:<h1>{project.name}</h1>}</div><div className="stage-actions"><input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={upload}/><button className="secondary" onClick={()=>fileRef.current?.click()}>↑ Upload image</button><button className="secondary" onClick={exportSvg}>↓ SVG</button></div></div>
+        <div className="stage-top"><div><span className="eyebrow">{view==="editor"?"SEMANTIC EDITOR":"INTERACTIVE PREVIEW"}</span>{view==="editor"?<input className="project-name" aria-label="Project name" value={project.name} onChange={e=>{setSaved(false);setProject(p=>({...p,name:e.target.value}))}} onBlur={()=>setProject(p=>({...p,name:p.name.trim()||"Untitled project"}))}/>:<h1>{project.name}</h1>}</div></div>
         {loadNotice&&<div className="hint edit-hint" role="status">{loadNotice}</div>}
         <div className={`canvas-wrap ${tool} ${dragging?"dragging":""}`}>
           <svg ref={svgRef} viewBox={`0 0 ${project.width} ${project.height}`} onPointerDown={onCanvas} onPointerMove={onPointerMove} onPointerUp={endGesture} onPointerCancel={endGesture} onDoubleClick={finishRoom} aria-label="Floor plan editor">
@@ -304,22 +328,44 @@ export default function Home() {
       <aside className="inspector">
         <div className="inspector-title"><div><span className="eyebrow">INSPECTOR</span><h2>{currentDevice ? `${currentDevice.type === "light" ? "Light" : "Sensor"} device` : current?.name || "Nothing selected"}</h2></div><span className="color-dot" style={{background:current?.color||"#ccd5d2"}}/></div>
         {currentDevice ? <>
-          <div className="edit-callout"><b>Edit device</b><p>Drag the device to reposition it. Home Assistant metadata is saved with the project but credentials are never stored.</p></div>
-          <div className="field"><span>Device ID</span><code>{currentDevice.id}</code></div>
-          <div className="field"><span>Type</span><b>{currentDevice.type}</b></div>
-          <div className="field"><span>Position</span><b>{currentDevice.x}, {currentDevice.y}</b></div>
-          <div className="section-title">HOME ASSISTANT</div>
-          <label>Entity ID<input placeholder={currentDevice.type==="light"?"light.alarm_light":"sensor.room_temperature"} value={currentDevice.ha?.entityId||""} onChange={e=>updateDeviceHa({entityId:e.target.value.trim()})}/></label>
-          <label>Alias / title<input placeholder="Alarm light" value={currentDevice.ha?.title||""} onChange={e=>updateDeviceHa({title:e.target.value})}/></label>
-          <label>Elements<select value={currentDevice.ha?.mode || (currentDevice.type==="light"?"icon-and-label":"state-label")} onChange={e=>updateDeviceHa({mode:e.target.value as HaDeviceConfig["mode"]})}><option value="state-icon">State icon</option><option value="state-label">State label</option><option value="icon-and-label">Icon + label</option></select></label>
-          <label>Icon override<input placeholder="mdi:alarm-light" value={currentDevice.ha?.icon||""} onChange={e=>updateDeviceHa({icon:e.target.value.trim()})}/></label>
-          <label>Icon size <span className="range-value">{currentDevice.ha?.iconSizePx||40}px</span><input type="range" min="12" max="96" value={currentDevice.ha?.iconSizePx||40} onChange={e=>updateDeviceHa({iconSizePx:+e.target.value})}/></label>
-          <label>Tap action<select value={currentDevice.ha?.tapAction.action || (currentDevice.type==="light"?"toggle":"more-info")} onChange={e=>updateAction("tapAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
-          <label>Hold action<select value={currentDevice.ha?.holdAction.action||"none"} onChange={e=>updateAction("holdAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
-          <label>Double-tap action<select value={currentDevice.ha?.doubleTapAction.action||"none"} onChange={e=>updateAction("doubleTapAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
-          {currentDevice.type==="light"&&<label>Room lighting overlay<select value={currentOverlay?.roomIds[0]||""} onChange={e=>setOverlayRoom(e.target.value)}><option value="">None</option>{project.rooms.map(room=><option key={room.id} value={room.id}>{room.name}{room.id===currentDevice.roomId?" (containing room)":""}</option>)}</select></label>}
-          {currentHaErrors.length>0&&<div className="edit-callout"><b>Home Assistant validation</b>{currentHaErrors.map(error=><p key={error}>{error}</p>)}</div>}
-          <button className="danger" onClick={deleteSelection}>Delete device</button>
+          <p className="inspector-helper">Configure the Home Assistant entity represented by this device.</p>
+          <div className="inspector-section primary-settings">
+            <div className="section-heading">Device</div>
+            <label>Alias / title<input placeholder="Alarm light" value={currentDevice.ha?.title||""} onChange={e=>updateDeviceHa({title:e.target.value})}/></label>
+            <label>Entity ID<input className={entityError?"invalid":""} aria-invalid={Boolean(entityError)} aria-describedby={entityError?"entity-error":"entity-help"} placeholder={currentDevice.type==="light"?"light.alarm_light":"sensor.room_temperature"} value={currentDevice.ha?.entityId||""} onChange={e=>updateDeviceHa({entityId:e.target.value.trim()})}/><small id="entity-help">Example: <code>light.alarm_light</code></small>{entityError&&<small id="entity-error" className="field-error" role="alert">{entityError}</small>}</label>
+            <div className="field"><span>Device type</span><b>{currentDevice.type}</b></div>
+            <label>Display mode<select className="styled-select" value={currentDevice.ha?.mode || (currentDevice.type==="light"?"icon-and-label":"state-label")} onChange={e=>updateDeviceHa({mode:e.target.value as HaDeviceConfig["mode"]})}><option value="state-icon">State icon</option><option value="state-label">State label</option><option value="icon-and-label">Icon + label</option></select></label>
+            <label>Tap action<select className="styled-select" value={currentDevice.ha?.tapAction.action || (currentDevice.type==="light"?"toggle":"more-info")} onChange={e=>updateAction("tapAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
+          </div>
+
+          <details className="inspector-disclosure">
+            <summary>Appearance</summary>
+            <div className="disclosure-body">
+              {currentDevice.ha?.mode!=="state-label"&&<label>Icon override<input placeholder="mdi:alarm-light" value={currentDevice.ha?.icon||""} onChange={e=>updateDeviceHa({icon:e.target.value.trim()})}/></label>}
+              <label><span className="label-row"><span>Icon size</span><span>{currentDevice.ha?.iconSizePx||40} px</span></span><input type="range" min="12" max="96" value={currentDevice.ha?.iconSizePx||40} onChange={e=>updateDeviceHa({iconSizePx:+e.target.value})}/></label>
+            </div>
+          </details>
+
+          <details className="inspector-disclosure">
+            <summary>Interactions</summary>
+            <div className="disclosure-body">
+              <label>Hold action<select className="styled-select" value={currentDevice.ha?.holdAction.action||"none"} onChange={e=>updateAction("holdAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
+              <label>Double-tap action<select className="styled-select" value={currentDevice.ha?.doubleTapAction.action||"none"} onChange={e=>updateAction("doubleTapAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
+            </div>
+          </details>
+
+          {currentDevice.type==="light"&&<details className="inspector-disclosure">
+            <summary>Room behavior</summary>
+            <div className="disclosure-body"><label>Lighting overlay<select className="styled-select" value={currentOverlay?.roomIds[0]||""} onChange={e=>setOverlayRoom(e.target.value)}><option value="">None</option>{project.rooms.map(room=><option key={room.id} value={room.id}>{room.name}{room.id===currentDevice.roomId?" (containing room)":""}</option>)}</select></label></div>
+          </details>}
+
+          <details className="inspector-disclosure">
+            <summary>Advanced</summary>
+            <div className="disclosure-body"><div className="field"><span>Internal device ID</span><code>{currentDevice.id}</code></div><div className="field"><span>Exact position</span><b>{currentDevice.x}, {currentDevice.y}</b></div><div className="privacy-notice">Entity IDs are saved as project metadata. Tokens and credentials are never requested or exported.</div></div>
+          </details>
+
+          {currentHaErrors.filter(error=>error!==entityError).length>0&&<div className="validation-summary" role="status"><b>Home Assistant validation</b>{currentHaErrors.filter(error=>error!==entityError).map(error=><p key={error}>{error}</p>)}</div>}
+          <div className="danger-zone"><div><b>Danger zone</b><p>Deleting removes the device and its associated overlay mapping.</p></div><button className="danger-button" onClick={deleteSelection}>Delete device</button></div>
         </> : current ? <>
           <div className="edit-callout"><b>Edit shape</b><p>Drag the room to move it. Use square handles to resize or round handles to adjust individual vertices.</p></div>
           <label>Room name<input value={current.name} onChange={e=>setProject(p=>({...p,rooms:p.rooms.map(r=>r.id===current.id?{...r,name:e.target.value}:r)}))} onBlur={remember}/></label>
@@ -331,7 +377,6 @@ export default function Home() {
           <div className="section-title">ROOM COLOR</div><div className="swatches">{COLORS.map(c=><button key={c} className={current.color===c?"active":""} style={{background:c}} onClick={()=>updateProject(p=>({...p,rooms:p.rooms.map(r=>r.id===current.id?{...r,color:c}:r)}))}/>)}</div>
           <button className="danger" onClick={deleteSelection}>Delete room and its devices</button>
         </>:<div className="inspector-empty">Select a room to edit its shape, label, status, color, and devices.</div>}
-        <div className="privacy-card"><b>Built for privacy</b><p>Images and projects stay in your browser. Home Assistant entity IDs are project metadata; tokens and credentials are never requested or exported.</p></div>
       </aside>
     </section>
   </main>;
