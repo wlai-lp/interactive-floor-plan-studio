@@ -183,7 +183,7 @@ export function validateProjectV2(project) {
     if (!roomIds.has(device.roomId)) errors.push(`${path}.roomId references a missing room`);
     finite(device.x, `${path}.x`, errors);
     finite(device.y, `${path}.y`, errors);
-    if (device.type !== "light" && device.type !== "sensor") errors.push(`${path}.type is unsupported`);
+    if (device.type !== "light" && device.type !== "sensor" && device.type !== "plug") errors.push(`${path}.type is unsupported`);
     errors.push(...validateHaDeviceConfig(device.ha, `${path}.ha`));
   }
 

@@ -36,11 +36,17 @@ test("entity inspector prioritizes user-facing fields and progressive disclosure
   const internalId = page.indexOf("Internal device ID");
   assert.ok(alias >= 0 && entity > alias && internalId > entity);
   for (const section of ["Appearance", "Interactions", "Room behavior", "Advanced", "Danger zone"]) assert.match(page, new RegExp(section));
-  assert.match(page, /Example: <code>light\.alarm_light<\/code>/);
+  assert.match(page, /light\.alarm_light/);
+  assert.match(page, /switch\.floor_lamp/);
 });
 
-test("destructive device removal requires confirmation", () => {
-  assert.match(page, /window\.confirm\(`Delete \$\{currentDevice/);
+test("destructive removal uses an app-native confirmation dialog", () => {
+  assert.doesNotMatch(page, /window\.confirm/);
+  assert.match(page, /role="alertdialog"/);
+  assert.match(page, /aria-modal="true"/);
+  assert.match(page, /confirmDeleteSelection/);
+  assert.match(page, /This action can be undone from the editor/);
+  assert.match(css, /\.confirmation-dialog/);
   assert.match(css, /\.danger-zone/);
   assert.match(css, /focus-visible/);
 });
@@ -50,7 +56,17 @@ test("first-use guidance explains the minimal export flow", () => {
   assert.match(page, /Configure this device/);
   assert.match(page, /Don&apos;t show again/);
   assert.match(page, /Actions → Export for Home Assistant/);
+  assert.match(page, /welcomeInitially/);
+  assert.match(page, /welcomeDevice\.x\/project\.width/);
+  assert.match(page, /tutorial-target/);
   assert.match(css, /\.ha-welcome/);
+  assert.match(css, /tutorial-pulse/);
+});
+
+test("sample project uses a power plug for the second device", () => {
+  assert.match(page, /id:"dev-2"[^\n]+type:"plug"/);
+  assert.match(page, /device-icon device-icon-plug/);
+  assert.match(page, /switch\.floor_lamp/);
 });
 
 test("export page uses clear primary and secondary actions", () => {

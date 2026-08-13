@@ -4,7 +4,7 @@
  *
  * @template {{ rooms: Array<{ id: string, light: boolean }> }} T
  * @param {T} project
- * @param {{ roomId: string, type: "light" | "sensor" }} device
+ * @param {{ roomId: string, type: "light" | "sensor" | "plug" }} device
  * @returns {T}
  */
 export function toggleLightForDevice(project, device) {

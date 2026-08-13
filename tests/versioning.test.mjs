@@ -47,6 +47,7 @@ test("device SVG exposes one accessible full-icon interaction target", async () 
   assert.match(styles, /\.device-dot \.device-hit-area\{[^}]*pointer-events:all/);
   assert.match(page, /className="device-icon device-icon-light"/);
   assert.match(page, /className="device-icon device-icon-sensor"/);
+  assert.match(page, /className="device-icon device-icon-plug"/);
   assert.doesNotMatch(page, /<text y="6">/);
 });
 
@@ -77,8 +78,8 @@ test("editor selections can delete devices or rooms with undo history", async ()
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(page, /setSelectedDevice\(view === "editor" \? device\.id : ""\)/);
-  assert.match(page, /devices:p\.devices\.filter\(d=>d\.id!==currentDevice\.id\)/);
-  assert.match(page, /rooms:p\.rooms\.filter\(r=>r\.id!==current\.id\),devices:p\.devices\.filter\(d=>d\.roomId!==current\.id\)/);
+  assert.match(page, /devices:p\.devices\.filter\(d=>d\.id!==deleteTarget\.id\)/);
+  assert.match(page, /rooms:p\.rooms\.filter\(r=>r\.id!==deleteTarget\.id\),devices:p\.devices\.filter\(d=>d\.roomId!==deleteTarget\.id\)/);
   assert.match(page, /event\.key !== "Delete" && event\.key !== "Backspace"/);
   assert.match(page, /target\?\.matches\("input, textarea, select, \[contenteditable=true\]"\)/);
   assert.match(page, />Delete device<\/button>/);
