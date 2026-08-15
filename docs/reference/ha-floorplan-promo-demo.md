@@ -1,53 +1,41 @@
-# HA FloorPlan Promo Demo Reference
+# HA FloorPlan Canonical Demo
 
-## Purpose
+## Status
 
-This document stages the current **HA FloorPlan Promo** demo as a durable implementation reference for builder/design agents.
+This document identifies the current **actual HA FloorPlan product demo** used by the project and builder agents.
 
-The canonical demo source was supplied as:
+The canonical demo supplied by the Founder / Product Owner is:
 
 - **File:** `HA FloorPlan Promo.html`
 - **Size:** 1,006,101 bytes
 - **SHA-256:** `0b26792d7d097977a04778c7fb140d7e4cb55cc25ee0913c03ecbb8ba2a9604a`
 - **Captured:** 2026-08-15
 
-The source is a self-contained browser demo bundle. Treat it as a **visual/product reference**, not production code to copy wholesale.
+This is **not merely a visual reference or inspiration artifact**. It is the actual demo that the project intends to use. Builder/design agents working on the demo, demo hosting, demo integration, or related promotional experience must treat this exact artifact as the canonical demo baseline unless the Founder / Product Owner explicitly replaces it.
 
 ## Builder-agent instruction
 
-Before implementing landing-page or promotional UI work, use the demo to understand the intended visual hierarchy, product tone, interaction story, and presentation style. Preserve the product positioning established in GitHub issues #33 and #43.
+When work refers to **the demo**, **current demo**, **HA FloorPlan demo**, or **promo demo**, it means `HA FloorPlan Promo.html` identified above.
 
-The demo should inform the builder about:
+Do not independently redesign, substitute, recreate, or reinterpret the demo merely because the source is a self-contained browser bundle. Preserve the existing demo experience unless the assigned GitHub issue explicitly requests a modification.
 
-- HA FloorPlan branding and visual identity;
-- the visual editor → Home Assistant output story;
-- floor-plan drawing and device-placement concepts;
-- a lightweight, approachable browser-first experience;
-- Home Assistant-specific positioning;
-- the transformation from a static floor plan into an interactive Home Assistant dashboard.
+The demo itself is authoritative for its demonstrated presentation, visual hierarchy, interaction flow, copy, and behavior. GitHub issues remain authoritative for new requirements, requested changes, implementation work, and acceptance criteria.
 
-Do **not** infer that every control or visual shown in the demo is an approved product requirement. Product scope and acceptance criteria remain authoritative in the relevant GitHub issues.
+If an issue requests changes to the demo, begin from this canonical demo and modify only the requested scope. If there is uncertainty about whether a proposed change should alter the canonical demo, route the decision to the Founder / Product Owner through the PM workflow.
 
-## Product boundaries that must remain clear
+## Product context
+
+The demo communicates the HA FloorPlan experience for Home Assistant users who want a lightweight visual workflow around the built-in `picture-elements` card, including custom floor-plan creation, device placement, Entity ID mapping, state-driven behavior, preview, and Home Assistant export.
 
 HA FloorPlan is not intended to become a general-purpose CAD/interior-design product.
-
-The target user is a Home Assistant user who wants to use the built-in `picture-elements` card but wants a visual, lightweight way to:
-
-1. draw a recognizable custom floor plan;
-2. place Home Assistant devices at their physical locations;
-3. map those devices to Home Assistant Entity IDs;
-4. configure state-driven room/device behavior visually;
-5. preview the result;
-6. export native Home Assistant Picture Elements YAML/assets.
-
-Normal use should require no desktop app installation, no HACS card, no custom Lovelace runtime, and no manual SVG/CSS/YAML positioning.
 
 ## Related source-of-truth issues
 
 - #33 — Marketing and UI brand brief for HA FloorPlan
 - #43 — Home Assistant floor-plan configuration methods and HA FloorPlan market positioning
 
-## Implementation rule
+## Authority rule
 
-When the demo conflicts with an approved GitHub issue, the approved issue wins. The demo is a visual reference artifact, while GitHub issues define product scope and behavior.
+- **Existing demo experience:** `HA FloorPlan Promo.html` is authoritative.
+- **Changes/new requirements:** the corresponding approved GitHub issue is authoritative.
+- **Product decisions or conflicts:** Founder / Product Owner has final authority.
