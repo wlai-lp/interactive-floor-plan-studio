@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import "../blog.css";
 
@@ -7,7 +8,7 @@ export const metadata: Metadata = {
   description: "Create a working Home Assistant Picture Elements floor plan with HAFloorplan in five steps.",
 };
 
-const Window = ({ title, children, caption }: { title: string; children: React.ReactNode; caption: string }) => <figure className="tutorial-visual">
+const Window = ({ title, children, caption }: { title: string; children: ReactNode; caption: string }) => <figure className="tutorial-visual">
   <div className="visual-bar"><span className="visual-dot"/><span className="visual-dot"/><span className="visual-dot"/><strong>{title}</strong></div>
   <div className="visual-body">{children}</div>
   <figcaption>{caption}</figcaption>
