@@ -1,0 +1,1 @@
+This directory is reserved for Epic #48 public-site routing and shared marketing layout work. The initial route split intentionally keeps the public root at `app/page.tsx`; later slices may move public routes into a route group once the shared marketing header/footer is introduced, without changing their URLs.
