@@ -7,7 +7,16 @@ const ROOT = process.cwd();
 const VENDOR_DIR = path.join(ROOT, "vendor", "ha-floorplan-promo");
 const OUTPUT_DIR = path.join(ROOT, "components", "ha-floorplan", "lib");
 const EXPECTED_SHA256 = "93ec60c0d5adf522e8fa7f6d90dbfe094991a16529b7096cca3ae1e415f5bdb5";
-const PARTS = Array.from({ length: 6 }, (_, index) => path.join(VENDOR_DIR, `archive.part0${index + 1}.b64`));
+const PARTS = [
+  "archive.part01.b64",
+  "archive.part02.b64",
+  "archive.part03a.b64",
+  "archive.part03b.b64",
+  "archive.part04a.b64",
+  "archive.part04b.b64",
+  "archive.part05.b64",
+  "archive.part06.b64",
+].map((name) => path.join(VENDOR_DIR, name));
 const TARGETS = new Map([
   ["export/nextjs/ha-floorplan/lib/animations-v3.js", 57234],
   ["export/nextjs/ha-floorplan/lib/hero-piece.js", 15585],
@@ -67,14 +76,6 @@ function extractTargets(zip) {
 
 async function main() {
   const base64Parts = await Promise.all(PARTS.map(async (file) => (await readFile(file, "utf8")).trim()));
-
-  // The GitHub text transport dropped one literal '+' while staging part 04.
-  // Restore that known byte before integrity verification so the reconstructed
-  // archive remains byte-for-byte identical to the Founder-provided ZIP.
-  if (base64Parts[3].length === 11999) {
-    base64Parts[3] = `${base64Parts[3].slice(0, 4526)}+${base64Parts[3].slice(4526)}`;
-  }
-
   const zip = Buffer.from(base64Parts.join(""), "base64");
   const actualHash = createHash("sha256").update(zip).digest("hex");
   if (actualHash !== EXPECTED_SHA256) {
