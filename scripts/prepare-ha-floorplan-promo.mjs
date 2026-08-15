@@ -67,6 +67,14 @@ function extractTargets(zip) {
 
 async function main() {
   const base64Parts = await Promise.all(PARTS.map(async (file) => (await readFile(file, "utf8")).trim()));
+
+  // The GitHub text transport dropped one literal '+' while staging part 04.
+  // Restore that known byte before integrity verification so the reconstructed
+  // archive remains byte-for-byte identical to the Founder-provided ZIP.
+  if (base64Parts[3].length === 11999) {
+    base64Parts[3] = `${base64Parts[3].slice(0, 4526)}+${base64Parts[3].slice(4526)}`;
+  }
+
   const zip = Buffer.from(base64Parts.join(""), "base64");
   const actualHash = createHash("sha256").update(zip).digest("hex");
   if (actualHash !== EXPECTED_SHA256) {
