@@ -26,9 +26,10 @@ function StaticHeroPreview() {
 
 export function LandingHero() {
   const [demoOpen, setDemoOpen] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -45,8 +46,29 @@ export function LandingHero() {
     window.requestAnimationFrame(() => closeRef.current?.focus());
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDemoOpen(false);
+      if (event.key === "Escape") {
+        setDemoOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
+
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
@@ -83,7 +105,7 @@ export function LandingHero() {
           </div>
 
           <div className="landing-hero-visual" aria-label="Short HAFloorplan product preview">
-            {!demoOpen && !reduceMotion ? (
+            {!demoOpen && reduceMotion === false ? (
               <HAFloorPlanHero showSteps showBrand />
             ) : (
               <StaticHeroPreview />
@@ -95,6 +117,7 @@ export function LandingHero() {
       {demoOpen && (
         <div className="landing-demo-backdrop" onMouseDown={() => setDemoOpen(false)}>
           <section
+            ref={dialogRef}
             className="landing-demo-dialog"
             role="dialog"
             aria-modal="true"
@@ -117,7 +140,7 @@ export function LandingHero() {
               </button>
             </div>
             <div className="landing-demo-stage">
-              {reduceMotion ? <StaticHeroPreview /> : <HAFloorPlanPromo showCaptions />}
+              {reduceMotion === false ? <HAFloorPlanPromo showCaptions /> : <StaticHeroPreview />}
             </div>
             <div className="landing-demo-footer">
               <p>Draw → Place → Connect → Export → use it in Home Assistant.</p>
