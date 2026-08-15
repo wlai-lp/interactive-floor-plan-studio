@@ -1,21 +1,22 @@
 import Link from "next/link";
-import styles from "./public-home.module.css";
+import { MarketingShell } from "../components/marketing/MarketingShell";
 
 export default function Page() {
   return (
-    <main className={styles.shell}>
-      <section className={styles.card}>
-        <p className={styles.eyebrow}>HA FLOORPLAN</p>
-        <h1 className={styles.title}>Build native Home Assistant floor plans visually.</h1>
-        <p className={styles.copy}>
-          The public HAFloorplan.com experience is being built here. The working MVP editor now lives at its permanent application route so the landing page, blog, and About experience can evolve independently.
-        </p>
-        <div className={styles.actions}>
-          <Link className={styles.primary} href="/editor">Open Editor</Link>
-          <Link className={styles.secondary} href="/home-assistant-export">Home Assistant Export</Link>
+    <MarketingShell>
+      <section className="public-intro">
+        <div className="marketing-container public-intro-inner">
+          <p className="public-eyebrow">HA FLOORPLAN</p>
+          <h1>Build native Home Assistant floor plans visually.</h1>
+          <p>
+            The public HAFloorplan.com experience is being built here. The working MVP editor now lives at its permanent application route so the landing page, blog, and About experience can evolve independently.
+          </p>
+          <div className="public-actions">
+            <Link className="public-primary" href="/editor">Open Editor</Link>
+            <Link className="public-secondary" href="/blog">Explore the Blog</Link>
+          </div>
         </div>
-        <p className={styles.note}>Your existing locally saved project uses the same browser storage and remains available in the editor.</p>
       </section>
-    </main>
+    </MarketingShell>
   );
 }
