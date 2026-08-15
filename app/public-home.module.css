@@ -1,0 +1,71 @@
+.shell {
+  min-height: 100vh;
+  background: #f7f6f1;
+  color: #17211f;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.card {
+  width: min(760px, 100%);
+  background: #fffdf7;
+  border: 1px solid #dfe6e2;
+  border-radius: 24px;
+  padding: clamp(32px, 6vw, 64px);
+  box-shadow: 0 24px 70px rgba(23, 33, 31, 0.08);
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #37695d;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(2.4rem, 7vw, 5rem);
+  line-height: 0.98;
+}
+
+.copy {
+  max-width: 620px;
+  margin: 24px 0 0;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.6;
+  color: #52615d;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 32px;
+}
+
+.primary,
+.secondary {
+  min-height: 44px;
+  border-radius: 999px;
+  padding: 12px 20px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.primary {
+  background: #17211f;
+  color: white;
+}
+
+.secondary {
+  border: 1px solid #cbd7d2;
+  color: #17211f;
+}
+
+.note {
+  margin-top: 28px;
+  font-size: 0.9rem;
+  color: #70807b;
+}

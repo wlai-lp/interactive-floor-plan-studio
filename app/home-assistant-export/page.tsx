@@ -56,13 +56,13 @@ export default function HomeAssistantExportPage() {
   return <div className="ha-export-shell">
     <header className="topbar ha-export-topbar">
       <Link className="brand" href="/"><span className="brandmark">◇</span><span>Floor Plan <b>Studio</b></span><span className="beta">LOCAL</span></Link>
-      <div className="header-actions"><span className="privacy"><i/> Private on this device</span><Link className="back-link" href="/">← Back to editor</Link></div>
+      <div className="header-actions"><span className="privacy"><i/> Private on this device</span><Link className="back-link" href="/editor">← Back to editor</Link></div>
     </header>
 
     <main className="ha-export-main">
       <div className="export-heading"><div><span className="eyebrow">HOME ASSISTANT</span><h1>Export to Home Assistant</h1><p>{project ? <>Generate a native picture-elements configuration for <b>{project.name}</b>.</> : "Generate a native picture-elements configuration from your saved project."}</p></div></div>
 
-      {loadError && <section className="export-card empty-export" role="alert"><h2>Project unavailable</h2><p>{loadError}</p><Link className="back-link" href="/">Return to editor</Link></section>}
+      {loadError && <section className="export-card empty-export" role="alert"><h2>Project unavailable</h2><p>{loadError}</p><Link className="back-link" href="/editor">Return to editor</Link></section>}
 
       {result && <div className="export-grid">
         <section className="export-card yaml-card">
@@ -76,8 +76,8 @@ export default function HomeAssistantExportPage() {
             <h2>Readiness</h2>
             {!result.errors.length ? <ul className="readiness"><li>✓ Entity IDs configured</li><li>✓ Room overlays mapped</li><li>✓ YAML ready</li></ul> : <>
               <p>Resolve these items before exporting:</p>
-              <ul className="validation-list">{result.errors.map((error: string) => { const deviceId=deviceIdFromError(error); return <li key={error} className="error">{error}{deviceId&&<> <Link className="correction-link" href={`/?device=${encodeURIComponent(deviceId)}`}>Select device</Link></>}</li> })}</ul>
-              <Link className="back-link" href="/">Back to editor</Link>
+              <ul className="validation-list">{result.errors.map((error: string) => { const deviceId=deviceIdFromError(error); return <li key={error} className="error">{error}{deviceId&&<> <Link className="correction-link" href={`/editor?device=${encodeURIComponent(deviceId)}`}>Select device</Link></>}</li> })}</ul>
+              <Link className="back-link" href="/editor">Back to editor</Link>
             </>}
             {!!result.warnings.length&&<ul className="validation-list">{result.warnings.map((warning:string)=><li key={warning}>{warning}</li>)}</ul>}
           </section>
