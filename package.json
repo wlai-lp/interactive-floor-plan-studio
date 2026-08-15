@@ -14,7 +14,7 @@
     "test": "npm run build && node --test tests/*.test.mjs",
     "test:unit": "node --test tests/versioning.test.mjs",
     "validate:artifact": "bash scripts/validate-artifact.sh",
-    "lint": "npm run prepare:promo && bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
+    "lint": "npm run prepare:promo && bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern components/ha-floorplan/lib",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
   },
   "dependencies": {
