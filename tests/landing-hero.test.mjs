@@ -8,6 +8,7 @@ const heroWrapper = await readFile(new URL("../components/ha-floorplan/HAFloorPl
 const workflow = await readFile(new URL("../components/marketing/LandingWorkflow.tsx", import.meta.url), "utf8");
 const shell = await readFile(new URL("../components/marketing/MarketingShell.tsx", import.meta.url), "utf8");
 const logo = await readFile(new URL("../components/brand/HAFloorplanLogo.tsx", import.meta.url), "utf8");
+const favicon = await readFile(new URL("../public/favicon.svg", import.meta.url), "utf8");
 const editorLayout = await readFile(new URL("../app/editor/layout.tsx", import.meta.url), "utf8");
 const exportLayout = await readFile(new URL("../app/home-assistant-export/layout.tsx", import.meta.url), "utf8");
 const prepareHero = await readFile(new URL("../scripts/prepare-ha-floorplan-hero.mjs", import.meta.url), "utf8");
@@ -55,4 +56,13 @@ test("shared HAFloorplan logo is reused across public and application shells", (
   assert.match(shell, /HAFloorplanLogo/);
   assert.match(editorLayout, /HAFloorplanLogo/);
   assert.match(exportLayout, /HAFloorplanLogo/);
+});
+
+test("favicon svg uses the exact HAFloorplan mark geometry", () => {
+  for (const path of ["M6 21 24 5l18 16v21H6V21Z", "M24 42V27h18"]) {
+    assert.match(logo, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(favicon, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(favicon, /viewBox="0 0 48 48"/);
+  assert.match(favicon, /stroke-width="2\.6"/);
 });
