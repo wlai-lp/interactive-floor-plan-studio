@@ -1,5 +1,5 @@
-# Deferred landing demo
+# Deferred full landing demo
 
-The native 9-second hero animation and 33.5-second product demo are intentionally deferred from the current landing-page PR so the static landing experience can be QA'd independently.
+The native 9-second HAFloorplan hero loop is part of the current landing-page PR and is validated in a real headless browser.
 
-The supplied demo package remains a product/design source for a later issue. When revisited, implementation should include browser-level interaction tests that prove the full demo never opens before explicit user activation and that close/Escape return the user to the landing page.
+The separate 33.5-second product demo remains deferred. When revisited, implementation must include browser-level interaction tests that prove the full demo never opens before explicit user activation, opens only after the user selects **Watch 30-second demo**, and closes correctly through both the visible Close control and Escape before returning focus to the landing page.
