@@ -28,13 +28,24 @@ test("landing page uses shared shell, native hero, workflow, and trust strip", (
   assert.doesNotMatch(hero, /iframe/i);
 });
 
-test("full promo is not imported until the user explicitly opens the demo", () => {
+test("full promo requires a trusted user click before import or modal creation", () => {
   assert.doesNotMatch(hero, /next\/dynamic/);
-  assert.match(hero, /const openDemo = async/);
+  assert.doesNotMatch(hero, /useState\(false\).*demoOpen/);
+  assert.match(hero, /const \[demoSession, setDemoSession\]/);
+  assert.match(hero, /event\.nativeEvent\.isTrusted/);
+  assert.match(hero, /const openDemo = async \(event:/);
   assert.match(hero, /await import\("\.\.\/ha-floorplan\/HAFloorPlanPromo"\)/);
   assert.match(hero, /onClick=\{openDemo\}/);
+  assert.match(hero, /setDemoSession\(\{ Promo: module\.default \}\)/);
+  assert.match(hero, /\{demoSession && \(/);
+  assert.match(hero, /pageshow/);
+});
+
+test("short hero stays mounted while the user-requested promo is loading", () => {
+  assert.match(hero, /const demoOpen = demoSession !== null/);
+  assert.match(hero, /setDemoLoading\(true\)/);
   assert.match(hero, /!demoOpen && reduceMotion === false/);
-  assert.match(hero, /demoOpen &&/);
+  assert.match(hero, /Loading demo…/);
 });
 
 test("demo modal supports reduced motion, close, Escape, and keyboard focus management", () => {
