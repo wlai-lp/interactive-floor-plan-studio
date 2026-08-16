@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import type { ComponentType } from "react";
+import type { ComponentType, MouseEvent as ReactMouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import HAFloorPlanHero from "../ha-floorplan/HAFloorPlanHero";
 import "./landing-hero.css";
 
 type PromoComponent = ComponentType<{ showCaptions?: boolean }>;
+type DemoSession = { Promo: PromoComponent | null } | null;
 
 function StaticHeroPreview() {
   return (
@@ -22,13 +23,18 @@ function StaticHeroPreview() {
 }
 
 export function LandingHero() {
-  const [demoOpen, setDemoOpen] = useState(false);
-  const [promo, setPromo] = useState<PromoComponent | null>(null);
+  // A demo session is created only by the trusted Watch demo click below.
+  // There is intentionally no independent `demoOpen` boolean that can drift
+  // to true through preloading, restored state, or programmatic interaction.
+  const [demoSession, setDemoSession] = useState<DemoSession>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [promoError, setPromoError] = useState("");
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
+
+  const demoOpen = demoSession !== null;
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -38,17 +44,39 @@ export function LandingHero() {
     return () => media.removeEventListener("change", update);
   }, []);
 
-  const openDemo = async () => {
+  // A restored/back-forward-cached landing page should always return with the
+  // optional product tour closed. Opening it remains an explicit user action.
+  useEffect(() => {
+    const closeRestoredDemo = () => setDemoSession(null);
+    window.addEventListener("pageshow", closeRestoredDemo);
+    return () => window.removeEventListener("pageshow", closeRestoredDemo);
+  }, []);
+
+  const openDemo = async (event: ReactMouseEvent<HTMLButtonElement>) => {
+    // React/programmatic events are not allowed to open the full product tour.
+    if (!event.nativeEvent.isTrusted || demoLoading || demoSession) return;
+
     setPromoError("");
-    setDemoOpen(true);
-    if (reduceMotion !== false || promo) return;
+
+    if (reduceMotion !== false) {
+      setDemoSession({ Promo: null });
+      return;
+    }
+
+    setDemoLoading(true);
     try {
+      // Critical: the full 33.5-second promo is imported only inside this
+      // trusted user-event handler. It is not imported during page startup.
       const module = await import("../ha-floorplan/HAFloorPlanPromo");
-      setPromo(() => module.default);
+      setDemoSession({ Promo: module.default });
     } catch {
-      setPromoError("The full product demo could not be loaded. Close this dialog and try again.");
+      setPromoError("The full product demo could not be loaded. Please try again.");
+    } finally {
+      setDemoLoading(false);
     }
   };
+
+  const closeDemo = () => setDemoSession(null);
 
   useEffect(() => {
     if (!demoOpen) return;
@@ -58,7 +86,7 @@ export function LandingHero() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setDemoOpen(false);
+        closeDemo();
         return;
       }
       if (event.key !== "Tab" || !dialogRef.current) return;
@@ -88,7 +116,7 @@ export function LandingHero() {
     };
   }, [demoOpen]);
 
-  const Promo = promo;
+  const Promo = demoSession?.Promo ?? null;
 
   return (
     <>
@@ -109,10 +137,13 @@ export function LandingHero() {
                 type="button"
                 onClick={openDemo}
                 aria-haspopup="dialog"
+                aria-expanded={demoOpen}
+                disabled={demoLoading}
               >
-                ▶ Watch 30-second demo
+                {demoLoading ? "Loading demo…" : "▶ Watch 30-second demo"}
               </button>
             </div>
+            {promoError && <p className="landing-demo-inline-error" role="alert">{promoError}</p>}
             <p className="landing-hero-proof">No account required · Your project stays in your browser</p>
           </div>
 
@@ -122,8 +153,8 @@ export function LandingHero() {
         </div>
       </section>
 
-      {demoOpen && (
-        <div className="landing-demo-backdrop" onMouseDown={() => setDemoOpen(false)}>
+      {demoSession && (
+        <div className="landing-demo-backdrop" onMouseDown={closeDemo}>
           <section
             ref={dialogRef}
             className="landing-demo-dialog"
@@ -142,21 +173,13 @@ export function LandingHero() {
                 type="button"
                 className="landing-demo-close"
                 aria-label="Close full product demo"
-                onClick={() => setDemoOpen(false)}
+                onClick={closeDemo}
               >
                 ×
               </button>
             </div>
             <div className="landing-demo-stage">
-              {reduceMotion !== false ? (
-                <StaticHeroPreview />
-              ) : promoError ? (
-                <p className="landing-demo-loading" role="alert">{promoError}</p>
-              ) : Promo ? (
-                <Promo showCaptions />
-              ) : (
-                <div className="landing-demo-loading" role="status">Loading product demo…</div>
-              )}
+              {reduceMotion !== false || !Promo ? <StaticHeroPreview /> : <Promo showCaptions />}
             </div>
             <div className="landing-demo-footer">
               <p>Draw → Place → Connect → Export → Add to HA → Interact.</p>
