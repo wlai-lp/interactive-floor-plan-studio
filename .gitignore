@@ -41,6 +41,3 @@ next-env.d.ts
 /.sites-runtime/
 /outputs/
 /work/
-
-# generated from the Founder-provided promo package
-/components/ha-floorplan/lib/
