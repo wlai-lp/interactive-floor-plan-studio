@@ -1,5 +1,9 @@
-# Deferred full landing demo
+# Click-triggered full landing demo
 
-The native 9-second HAFloorplan hero loop is part of the current landing-page PR and is validated in a real headless browser.
+The native 9-second HAFloorplan hero loop and the separate 33.5-second product demo are supplied as compiled Next.js client components in the same vendor archive.
 
-The separate 33.5-second product demo remains deferred. When revisited, implementation must include browser-level interaction tests that prove the full demo never opens before explicit user activation, opens only after the user selects **Watch 30-second demo**, and closes correctly through both the visible Close control and Escape before returning focus to the landing page.
+The full promo is not rendered on initial page load. It mounts only after the user selects **Watch 33-second demo**, inside an accessible modal. Closing the modal unmounts the full promo and restores focus to the trigger.
+
+Both animation adapters configure shared browser globals. The landing page therefore mounts only one animation component at a time: the short hero is removed before the full promo starts and is remounted after the promo closes.
+
+Browser-level interaction coverage proves the full demo remains absent before activation, opens from the button, closes from both the visible control and Escape, restores focus, and never runs concurrently with the short hero.
