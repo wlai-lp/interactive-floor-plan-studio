@@ -46,7 +46,14 @@ export default function HAFloorPlanHero({ showSteps = true, showBrand = true, cl
       ref={ref}
       className={className}
       data-short-demo="true"
-      style={{ width: "100%", aspectRatio: "16 / 9", background: "#f3f2f2", ...style }}
+      style={{
+        width: "100%",
+        aspectRatio: "16 / 9",
+        position: "relative",
+        overflow: "hidden",
+        background: "#f3f2f2",
+        ...style,
+      }}
     />
   );
 }
