@@ -5,6 +5,7 @@ import test from "node:test";
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const hero = await readFile(new URL("../components/marketing/LandingHero.tsx", import.meta.url), "utf8");
 const heroWrapper = await readFile(new URL("../components/ha-floorplan/HAFloorPlanHero.jsx", import.meta.url), "utf8");
+const promoWrapper = await readFile(new URL("../components/ha-floorplan/HAFloorPlanPromo.jsx", import.meta.url), "utf8");
 const workflow = await readFile(new URL("../components/marketing/LandingWorkflow.tsx", import.meta.url), "utf8");
 const shell = await readFile(new URL("../components/marketing/MarketingShell.tsx", import.meta.url), "utf8");
 const logo = await readFile(new URL("../components/brand/HAFloorplanLogo.tsx", import.meta.url), "utf8");
@@ -29,14 +30,23 @@ test("landing page uses shared shell, short hero, workflow, and trust strip", ()
   assert.match(workflow, /Native Picture Elements YAML/);
 });
 
-test("only the short hero demo is wired into the landing page", () => {
-  assert.doesNotMatch(hero, /Watch 30-second demo|HAFloorPlanPromo|role="dialog"|aria-modal/);
+test("full promo mounts only from the 33-second demo dialog", () => {
+  assert.match(hero, /Watch 33-second demo/);
+  assert.match(hero, /HAFloorPlanPromo/);
+  assert.match(hero, /fullDemoOpen &&/);
+  assert.match(hero, /role="dialog"/);
+  assert.match(hero, /aria-modal="true"/);
+  assert.match(hero, /event\.key === "Escape"/);
+  assert.match(hero, /demoTrigger\?\.focus\(\)/);
+  assert.match(hero, /!fullDemoOpen && reduceMotion === false/);
   assert.match(heroWrapper, /9s HAFloorplan hero loop/);
   assert.match(heroWrapper, /window\.OM_PLAYBACK = '\{"mode":"loop"\}'/);
   assert.match(heroWrapper, /data-short-demo="true"/);
   assert.match(heroWrapper, /dataset\.demoReady = "true"/);
-  assert.doesNotMatch(prepareHero, /promo-piece\.js/);
-  assert.equal(packageJson.scripts["prepare:promo"], undefined);
+  assert.match(promoWrapper, /33\.5s HA FloorPlan promo loop/);
+  assert.match(promoWrapper, /data-full-demo="true"/);
+  assert.match(promoWrapper, /import\("\.\/lib\/promo-piece\.js"\)/);
+  assert.match(prepareHero, /promo-piece\.js/);
   assert.equal(packageJson.scripts["prepare:hero"], "node scripts/prepare-ha-floorplan-hero.mjs");
   assert.match(packageJson.scripts.dev, /prepare:hero/);
   assert.match(packageJson.scripts.build, /prepare:hero/);
