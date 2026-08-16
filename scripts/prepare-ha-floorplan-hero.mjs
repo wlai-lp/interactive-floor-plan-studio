@@ -20,6 +20,7 @@ const PARTS = [
 const TARGETS = new Map([
   ["export/nextjs/ha-floorplan/lib/animations-v3.js", 57234],
   ["export/nextjs/ha-floorplan/lib/hero-piece.js", 15585],
+  ["export/nextjs/ha-floorplan/lib/promo-piece.js", 55809],
   ["export/nextjs/ha-floorplan/lib/tweaks-panel.js", 26858],
 ]);
 
@@ -86,7 +87,7 @@ async function main() {
   for (const [sourceName, contents] of files) {
     await writeFile(path.join(OUTPUT_DIR, path.basename(sourceName)), contents);
   }
-  console.log(`Prepared ${files.size} HAFloorplan short-demo runtime files.`);
+  console.log(`Prepared ${files.size} HAFloorplan animation runtime files.`);
 }
 
 await main();

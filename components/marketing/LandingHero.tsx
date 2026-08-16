@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import HAFloorPlanHero from "../ha-floorplan/HAFloorPlanHero";
+import HAFloorPlanPromo from "../ha-floorplan/HAFloorPlanPromo";
 import "./landing-hero.css";
 
 function StaticProductPreview() {
@@ -39,6 +40,9 @@ function StaticProductPreview() {
 
 export function LandingHero() {
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
+  const [fullDemoOpen, setFullDemoOpen] = useState(false);
+  const demoTriggerRef = useRef<HTMLButtonElement>(null);
+  const demoCloseRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -47,6 +51,26 @@ export function LandingHero() {
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+
+  useEffect(() => {
+    if (!fullDemoOpen) return;
+
+    const demoTrigger = demoTriggerRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    demoCloseRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFullDemoOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+      demoTrigger?.focus();
+    };
+  }, [fullDemoOpen]);
 
   return (
     <section className="landing-hero" aria-labelledby="landing-hero-title">
@@ -60,12 +84,23 @@ export function LandingHero() {
           </p>
           <div className="public-actions landing-hero-actions">
             <Link className="public-primary" href="/editor">Open Editor</Link>
+            <button
+              ref={demoTriggerRef}
+              className="public-secondary landing-demo-trigger"
+              type="button"
+              data-full-demo-trigger="true"
+              aria-haspopup="dialog"
+              onClick={() => setFullDemoOpen(true)}
+            >
+              <span aria-hidden="true">▶</span>
+              Watch Demo
+            </button>
           </div>
           <p className="landing-hero-proof">No account required · Your project stays in your browser</p>
         </div>
 
         <div className="landing-hero-visual" aria-label="Short HAFloorplan product demo">
-          {reduceMotion === false ? (
+          {!fullDemoOpen && reduceMotion === false ? (
             <div className="landing-short-demo">
               <HAFloorPlanHero showSteps showBrand />
             </div>
@@ -74,6 +109,43 @@ export function LandingHero() {
           )}
         </div>
       </div>
+
+      {fullDemoOpen && (
+        <div
+          className="landing-demo-backdrop"
+          role="presentation"
+          data-full-demo-backdrop="true"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setFullDemoOpen(false);
+          }}
+        >
+          <div
+            className="landing-demo-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="landing-demo-title"
+          >
+            <div className="landing-demo-dialog-header">
+              <div>
+                <p className="public-eyebrow">PRODUCT TOUR</p>
+                <h2 id="landing-demo-title">See HAFloorplan in action</h2>
+              </div>
+              <button
+                ref={demoCloseRef}
+                className="landing-demo-close"
+                type="button"
+                aria-label="Close demo"
+                onClick={() => setFullDemoOpen(false)}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+            <div className="landing-full-demo-stage">
+              <HAFloorPlanPromo showCaptions />
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
