@@ -93,7 +93,7 @@ export function LandingHero() {
               onClick={() => setFullDemoOpen(true)}
             >
               <span aria-hidden="true">▶</span>
-              Watch 33-second demo
+              Watch Demo
             </button>
           </div>
           <p className="landing-hero-proof">No account required · Your project stays in your browser</p>
@@ -127,14 +127,14 @@ export function LandingHero() {
           >
             <div className="landing-demo-dialog-header">
               <div>
-                <p className="public-eyebrow">33-SECOND PRODUCT TOUR</p>
+                <p className="public-eyebrow">PRODUCT TOUR</p>
                 <h2 id="landing-demo-title">See HAFloorplan in action</h2>
               </div>
               <button
                 ref={demoCloseRef}
                 className="landing-demo-close"
                 type="button"
-                aria-label="Close 33-second demo"
+                aria-label="Close demo"
                 onClick={() => setFullDemoOpen(false)}
               >
                 <span aria-hidden="true">×</span>

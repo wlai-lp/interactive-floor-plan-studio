@@ -136,7 +136,7 @@ try {
     dialog: !!document.querySelector('[role="dialog"][aria-modal="true"]'),
     fullDemo: !!document.querySelector('[data-full-demo="true"]'),
     shortDemo: !!document.querySelector('[data-short-demo="true"]'),
-    closeFocused: document.activeElement?.getAttribute('aria-label') === 'Close 33-second demo'
+    closeFocused: document.activeElement?.getAttribute('aria-label') === 'Close demo'
   })`, sessionId);
   if (!openState.dialog || !openState.fullDemo || openState.shortDemo || !openState.closeFocused) {
     throw new Error(`Unexpected open demo state: ${JSON.stringify(openState)}`);
@@ -145,7 +145,7 @@ try {
   const screenshot = await send("Page.captureScreenshot", { format: "png" }, sessionId);
   await writeFile("/tmp/landing-full-demo.png", Buffer.from(screenshot.data, "base64"));
 
-  await evaluate('document.querySelector(\'[aria-label="Close 33-second demo"]\').click()', sessionId);
+  await evaluate('document.querySelector(\'[aria-label="Close demo"]\').click()', sessionId);
   await waitFor('document.querySelector(\'[data-short-demo="true"][data-demo-ready="true"]\') !== null', sessionId, "the remounted short hero");
 
   const closedState = await evaluate(`({

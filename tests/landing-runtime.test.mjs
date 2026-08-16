@@ -12,7 +12,8 @@ test("landing runtime keeps the full promo behind explicit activation", () => {
   assert.match(heroWrapper, /data-short-demo="true"/);
   assert.match(heroWrapper, /dataset\.demoReady = "true"/);
   assert.match(hero, /HAFloorPlanPromo/);
-  assert.match(hero, /Watch 33-second demo/);
+  assert.match(hero, /Watch Demo/);
+  assert.match(hero, />PRODUCT TOUR</);
   assert.match(hero, /role="dialog"/);
   assert.match(hero, /fullDemoOpen &&/);
   assert.match(promoWrapper, /data-full-demo="true"/);
