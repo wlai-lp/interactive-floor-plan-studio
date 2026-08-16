@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import HAFloorPlanHero from "../ha-floorplan/HAFloorPlanHero";
 import "./landing-hero.css";
 
 function StaticProductPreview() {
@@ -34,6 +38,16 @@ function StaticProductPreview() {
 }
 
 export function LandingHero() {
+  const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduceMotion(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
   return (
     <section className="landing-hero" aria-labelledby="landing-hero-title">
       <div className="marketing-container landing-hero-grid">
@@ -50,8 +64,14 @@ export function LandingHero() {
           <p className="landing-hero-proof">No account required · Your project stays in your browser</p>
         </div>
 
-        <div className="landing-hero-visual">
-          <StaticProductPreview />
+        <div className="landing-hero-visual" aria-label="Short HAFloorplan product demo">
+          {reduceMotion === false ? (
+            <div className="landing-short-demo">
+              <HAFloorPlanHero showSteps showBrand />
+            </div>
+          ) : (
+            <StaticProductPreview />
+          )}
         </div>
       </div>
     </section>
