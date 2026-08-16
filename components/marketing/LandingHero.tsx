@@ -1,15 +1,12 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
+import type { ComponentType } from "react";
 import { useEffect, useRef, useState } from "react";
 import HAFloorPlanHero from "../ha-floorplan/HAFloorPlanHero";
 import "./landing-hero.css";
 
-const HAFloorPlanPromo = dynamic(() => import("../ha-floorplan/HAFloorPlanPromo"), {
-  ssr: false,
-  loading: () => <div className="landing-demo-loading">Loading product demo…</div>,
-});
+type PromoComponent = ComponentType<{ showCaptions?: boolean }>;
 
 function StaticHeroPreview() {
   return (
@@ -18,7 +15,7 @@ function StaticHeroPreview() {
         <span className="landing-static-room">Living room</span>
         <span className="landing-static-light" aria-hidden="true">●</span>
       </div>
-      <p>Draw → Place → Connect → Export → Interact</p>
+      <p>Draw → Place → Connect → Export → Add to HA → Interact</p>
       <strong>Native Home Assistant Picture Elements out.</strong>
     </div>
   );
@@ -26,6 +23,8 @@ function StaticHeroPreview() {
 
 export function LandingHero() {
   const [demoOpen, setDemoOpen] = useState(false);
+  const [promo, setPromo] = useState<PromoComponent | null>(null);
+  const [promoError, setPromoError] = useState("");
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -38,6 +37,18 @@ export function LandingHero() {
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+
+  const openDemo = async () => {
+    setPromoError("");
+    setDemoOpen(true);
+    if (reduceMotion !== false || promo) return;
+    try {
+      const module = await import("../ha-floorplan/HAFloorPlanPromo");
+      setPromo(() => module.default);
+    } catch {
+      setPromoError("The full product demo could not be loaded. Close this dialog and try again.");
+    }
+  };
 
   useEffect(() => {
     if (!demoOpen) return;
@@ -77,17 +88,18 @@ export function LandingHero() {
     };
   }, [demoOpen]);
 
+  const Promo = promo;
+
   return (
     <>
       <section className="landing-hero" aria-labelledby="landing-hero-title">
         <div className="marketing-container landing-hero-grid">
           <div className="landing-hero-copy">
-            <p className="public-eyebrow">VISUAL EDITOR → NATIVE PICTURE ELEMENTS</p>
+            <p className="public-eyebrow">VISUAL FLOOR PLAN BUILDER FOR HOME ASSISTANT</p>
             <h1 id="landing-hero-title">Your Home Assistant Dashboard Should Look Like Your Home.</h1>
             <p className="landing-hero-lede">
-              Build an interactive floor plan visually. Draw rooms, place lights and switches where they belong,
-              connect Home Assistant entities, and generate native Picture Elements YAML without positioning
-              everything by hand.
+              Turn a floor plan into an interactive Home Assistant dashboard—visually, privately, and without
+              hand-writing YAML.
             </p>
             <div className="public-actions landing-hero-actions">
               <Link className="public-primary" href="/editor">Open Editor</Link>
@@ -95,21 +107,17 @@ export function LandingHero() {
                 ref={triggerRef}
                 className="public-secondary landing-demo-trigger"
                 type="button"
-                onClick={() => setDemoOpen(true)}
+                onClick={openDemo}
                 aria-haspopup="dialog"
               >
                 ▶ Watch 30-second demo
               </button>
             </div>
-            <p className="landing-hero-proof">No install · No HACS/custom card · Local-first MVP</p>
+            <p className="landing-hero-proof">No account required · Your project stays in your browser</p>
           </div>
 
           <div className="landing-hero-visual" aria-label="Short HAFloorplan product preview">
-            {!demoOpen && reduceMotion === false ? (
-              <HAFloorPlanHero showSteps showBrand />
-            ) : (
-              <StaticHeroPreview />
-            )}
+            {!demoOpen && reduceMotion === false ? <HAFloorPlanHero showSteps showBrand /> : <StaticHeroPreview />}
           </div>
         </div>
       </section>
@@ -140,10 +148,18 @@ export function LandingHero() {
               </button>
             </div>
             <div className="landing-demo-stage">
-              {reduceMotion === false ? <HAFloorPlanPromo showCaptions /> : <StaticHeroPreview />}
+              {reduceMotion !== false ? (
+                <StaticHeroPreview />
+              ) : promoError ? (
+                <p className="landing-demo-loading" role="alert">{promoError}</p>
+              ) : Promo ? (
+                <Promo showCaptions />
+              ) : (
+                <div className="landing-demo-loading" role="status">Loading product demo…</div>
+              )}
             </div>
             <div className="landing-demo-footer">
-              <p>Draw → Place → Connect → Export → use it in Home Assistant.</p>
+              <p>Draw → Place → Connect → Export → Add to HA → Interact.</p>
               <Link className="public-primary" href="/editor">Open Editor</Link>
             </div>
           </section>
