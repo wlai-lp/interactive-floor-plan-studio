@@ -47,7 +47,9 @@ export function LandingHero() {
   // A restored/back-forward-cached landing page should always return with the
   // optional product tour closed. Opening it remains an explicit user action.
   useEffect(() => {
-    const closeRestoredDemo = () => setDemoSession(null);
+    const closeRestoredDemo = (event: PageTransitionEvent) => {
+      if (event.persisted) setDemoSession(null);
+    };
     window.addEventListener("pageshow", closeRestoredDemo);
     return () => window.removeEventListener("pageshow", closeRestoredDemo);
   }, []);
