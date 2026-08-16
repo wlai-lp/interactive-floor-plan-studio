@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { HAFloorplanLogo } from "../brand/HAFloorplanLogo";
 import "./marketing-shell.css";
 
 export function MarketingHeader() {
@@ -7,11 +8,9 @@ export function MarketingHeader() {
     <header className="marketing-header">
       <div className="marketing-container marketing-header-inner">
         <Link className="marketing-brand" href="/" aria-label="HAFloorplan home">
-          <span className="marketing-brandmark" aria-hidden="true">◇</span>
-          <span>HA <strong>FloorPlan</strong></span>
+          <HAFloorplanLogo />
         </Link>
         <nav className="marketing-nav" aria-label="Primary navigation">
-          <Link href="/editor">Editor</Link>
           <Link href="/blog">Blog</Link>
           <Link href="/about">About</Link>
           <Link className="marketing-cta" href="/editor">Open Editor</Link>
@@ -26,9 +25,8 @@ export function MarketingFooter() {
     <footer className="marketing-footer">
       <div className="marketing-container marketing-footer-grid">
         <div className="marketing-footer-intro">
-          <Link className="marketing-brand" href="/">
-            <span className="marketing-brandmark" aria-hidden="true">◇</span>
-            <span>HA <strong>FloorPlan</strong></span>
+          <Link className="marketing-brand" href="/" aria-label="HAFloorplan home">
+            <HAFloorplanLogo />
           </Link>
           <p>Build native Home Assistant floor-plan dashboards visually.</p>
         </div>
