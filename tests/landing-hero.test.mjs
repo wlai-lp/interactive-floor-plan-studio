@@ -4,28 +4,40 @@ import test from "node:test";
 
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const hero = await readFile(new URL("../components/marketing/LandingHero.tsx", import.meta.url), "utf8");
+const workflow = await readFile(new URL("../components/marketing/LandingWorkflow.tsx", import.meta.url), "utf8");
+const shell = await readFile(new URL("../components/marketing/MarketingShell.tsx", import.meta.url), "utf8");
+const logo = await readFile(new URL("../components/brand/HAFloorplanLogo.tsx", import.meta.url), "utf8");
+const editorLayout = await readFile(new URL("../app/editor/layout.tsx", import.meta.url), "utf8");
+const exportLayout = await readFile(new URL("../app/home-assistant-export/layout.tsx", import.meta.url), "utf8");
 const heroWrapper = await readFile(new URL("../components/ha-floorplan/HAFloorPlanHero.jsx", import.meta.url), "utf8");
 const promoWrapper = await readFile(new URL("../components/ha-floorplan/HAFloorPlanPromo.jsx", import.meta.url), "utf8");
 const prepareScript = await readFile(new URL("../scripts/prepare-ha-floorplan-promo.mjs", import.meta.url), "utf8");
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
-test("landing page uses the shared shell and approved native hero", () => {
+test("landing page uses shared shell, native hero, workflow, and trust strip", () => {
   assert.match(page, /MarketingShell/);
   assert.match(page, /LandingHero/);
+  assert.match(page, /LandingWorkflow/);
   assert.match(hero, /Your Home Assistant Dashboard Should Look Like Your Home\./);
   assert.match(hero, /href="\/editor"/);
   assert.match(hero, /Watch 30-second demo/);
+  assert.match(workflow, /From floor plan to dashboard in minutes/);
+  assert.match(workflow, /Add to HA/);
+  assert.match(workflow, /No installation/);
+  assert.match(workflow, /Native Picture Elements YAML/);
   assert.doesNotMatch(hero, /iframe/i);
 });
 
-test("short hero and full promo cannot mount concurrently", () => {
+test("full promo is not imported until the user explicitly opens the demo", () => {
+  assert.doesNotMatch(hero, /next\/dynamic/);
+  assert.match(hero, /const openDemo = async/);
+  assert.match(hero, /await import\("\.\.\/ha-floorplan\/HAFloorPlanPromo"\)/);
+  assert.match(hero, /onClick=\{openDemo\}/);
   assert.match(hero, /!demoOpen && reduceMotion === false/);
   assert.match(hero, /demoOpen &&/);
-  assert.match(hero, /HAFloorPlanPromo/);
-  assert.match(hero, /HAFloorPlanHero/);
 });
 
-test("demo modal supports reduced motion and keyboard focus management", () => {
+test("demo modal supports reduced motion, close, Escape, and keyboard focus management", () => {
   assert.match(hero, /prefers-reduced-motion: reduce/);
   assert.match(hero, /role="dialog"/);
   assert.match(hero, /aria-modal="true"/);
@@ -33,6 +45,23 @@ test("demo modal supports reduced motion and keyboard focus management", () => {
   assert.match(hero, /event\.key !== "Tab"/);
   assert.match(hero, /triggerRef\.current\?\.focus/);
   assert.match(hero, /closeRef\.current\?\.focus/);
+  assert.match(hero, /Close full product demo/);
+});
+
+test("public navigation removes redundant Editor link and keeps Open Editor", () => {
+  const nav = shell.match(/<nav[\s\S]*?<\/nav>/)?.[0] || "";
+  assert.doesNotMatch(nav, />Editor<\/Link>/);
+  assert.match(nav, />Blog<\/Link>/);
+  assert.match(nav, />About<\/Link>/);
+  assert.match(nav, /Open Editor/);
+});
+
+test("shared HAFloorplan logo is reused across public and application shells", () => {
+  assert.match(logo, /HAFloorplanLogo/);
+  assert.match(logo, /HAFloorplanMark/);
+  assert.match(shell, /HAFloorplanLogo/);
+  assert.match(editorLayout, /HAFloorplanLogo/);
+  assert.match(exportLayout, /HAFloorplanLogo/);
 });
 
 test("Founder-provided animation wrappers retain their approved scene contracts", () => {
