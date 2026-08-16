@@ -5,6 +5,8 @@ on:
     paths:
       - "app/**"
       - "components/**"
+      - "scripts/**"
+      - "vendor/ha-floorplan-promo/**"
       - "tests/**"
       - "package.json"
       - ".github/workflows/landing-browser-smoke.yml"
@@ -40,7 +42,7 @@ jobs:
           cat /tmp/hafloorplan-vite.log
           exit 1
 
-      - name: Verify rendered landing page in headless Chrome
+      - name: Verify rendered landing page and short demo in headless Chrome
         run: |
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           if [ -z "$CHROME" ]; then
@@ -62,13 +64,24 @@ jobs:
           grep -q "Native Picture Elements YAML" /tmp/landing-rendered.html
           grep -q "Open Editor" /tmp/landing-rendered.html
 
+          # Runtime assertion: the actual 9-second animation wrapper completed
+          # its module imports and mounted the supplied hero piece.
+          grep -q 'data-short-demo="true"' /tmp/landing-rendered.html
+          grep -q 'data-demo-ready="true"' /tmp/landing-rendered.html
+
+          if grep -q 'data-demo-error="true"' /tmp/landing-rendered.html; then
+            echo "Short hero demo reported a runtime error."
+            cat /tmp/hafloorplan-vite.log
+            exit 1
+          fi
+
           if grep -q "Watch 30-second demo" /tmp/landing-rendered.html; then
-            echo "Unexpected demo CTA found in rendered landing page."
+            echo "Unexpected full-demo CTA found in rendered landing page."
             exit 1
           fi
 
           if grep -q 'role="dialog"' /tmp/landing-rendered.html; then
-            echo "Unexpected dialog found in rendered landing page."
+            echo "Unexpected full-demo dialog found in rendered landing page."
             exit 1
           fi
 
@@ -77,7 +90,7 @@ jobs:
         run: |
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           if [ -n "$CHROME" ]; then
-            "$CHROME" --headless=new --no-sandbox --disable-gpu --window-size=1536,1000 --screenshot=/tmp/landing.png http://127.0.0.1:4173/ || true
+            "$CHROME" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=3000 --window-size=1536,1000 --screenshot=/tmp/landing.png http://127.0.0.1:4173/ || true
           fi
 
       - name: Upload browser QA artifacts
