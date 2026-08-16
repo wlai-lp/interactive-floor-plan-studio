@@ -1,4 +1,4 @@
-name: Landing browser smoke
+name: Public browser smoke
 
 on:
   pull_request:
@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  landing-browser-smoke:
+  public-browser-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,6 +28,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Run export hydration regression test
+        run: node --test tests/ha-export-hydration.test.mjs
 
       - name: Start development server
         run: |
@@ -63,9 +66,6 @@ jobs:
           grep -q "Add to HA" /tmp/landing-rendered.html
           grep -q "Native Picture Elements YAML" /tmp/landing-rendered.html
           grep -q "Open Editor" /tmp/landing-rendered.html
-
-          # Runtime assertion: the actual 9-second animation wrapper completed
-          # its module imports and mounted the supplied hero piece.
           grep -q 'data-short-demo="true"' /tmp/landing-rendered.html
           grep -q 'data-demo-ready="true"' /tmp/landing-rendered.html
 
@@ -85,6 +85,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify Home Assistant export hydration with saved browser project
+        run: |
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$CHROME" ]; then
+            echo "No Chrome/Chromium executable found on runner."
+            exit 1
+          fi
+          CHROME="$CHROME" BASE_URL="http://127.0.0.1:4173" node tests/ha-export-browser-smoke.mjs
+
       - name: Capture landing screenshot
         if: always()
         run: |
@@ -97,9 +106,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: landing-browser-smoke
+          name: public-browser-smoke
           path: |
             /tmp/landing-rendered.html
             /tmp/landing.png
+            /tmp/ha-export.png
+            /tmp/ha-export-browser.log
             /tmp/hafloorplan-vite.log
           if-no-files-found: ignore
