@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { migrateProject } from "../project-schema.mjs";
 import { createHomeAssistantExport } from "../ha-export-workflow.mjs";
@@ -9,19 +9,51 @@ import "./ha-export-page.css";
 const STORAGE_KEY = "floor-plan-studio-project";
 const deviceIdFromError = (error: string) => error.match(/^Device ([^:]+):/)?.[1];
 
+type SavedProject = { name: string };
+type ProjectLoadState = {
+  project: SavedProject | null;
+  loadError: string;
+  loaded: boolean;
+};
+
+const INITIAL_PROJECT_STATE: ProjectLoadState = {
+  project: null,
+  loadError: "",
+  loaded: false,
+};
+
 export default function HomeAssistantExportPage() {
-  const [{ project, loadError }] = useState(() => {
-    if (typeof window === "undefined") return { project: null, loadError: "" };
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { project: null, loadError: "No saved project found. Return to the editor and save a project first." };
-      return { project: migrateProject(JSON.parse(raw)).project as { name: string }, loadError: "" };
-    } catch (error) {
-      return { project: null, loadError: error instanceof Error ? error.message : "Unable to load the saved project." };
-    }
-  });
+  // Keep the server render and the client's first hydration render identical.
+  // Browser-only project state is loaded after hydration in the effect below.
+  const [{ project, loadError, loaded }, setProjectState] = useState<ProjectLoadState>(INITIAL_PROJECT_STATE);
   const [feedback, setFeedback] = useState("");
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        setProjectState({
+          project: null,
+          loadError: "No saved project found. Return to the editor and save a project first.",
+          loaded: true,
+        });
+        return;
+      }
+
+      setProjectState({
+        project: migrateProject(JSON.parse(raw)).project as SavedProject,
+        loadError: "",
+        loaded: true,
+      });
+    } catch (error) {
+      setProjectState({
+        project: null,
+        loadError: error instanceof Error ? error.message : "Unable to load the saved project.",
+        loaded: true,
+      });
+    }
+  }, []);
 
   const result = useMemo(() => project ? createHomeAssistantExport(project) : null, [project]);
 
@@ -62,7 +94,7 @@ export default function HomeAssistantExportPage() {
     <main className="ha-export-main">
       <div className="export-heading"><div><span className="eyebrow">HOME ASSISTANT</span><h1>Export to Home Assistant</h1><p>{project ? <>Generate a native picture-elements configuration for <b>{project.name}</b>.</> : "Generate a native picture-elements configuration from your saved project."}</p></div></div>
 
-      {loadError && <section className="export-card empty-export" role="alert"><h2>Project unavailable</h2><p>{loadError}</p><Link className="back-link" href="/editor">Return to editor</Link></section>}
+      {loaded && loadError && <section className="export-card empty-export" role="alert"><h2>Project unavailable</h2><p>{loadError}</p><Link className="back-link" href="/editor">Return to editor</Link></section>}
 
       {result && <div className="export-grid">
         <section className="export-card yaml-card">
