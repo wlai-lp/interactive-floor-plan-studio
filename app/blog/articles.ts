@@ -18,6 +18,7 @@ export const blogArticles: BlogArticle[] = [
     title: "Getting Started with HAFloorplan",
     description: "Create a working Home Assistant Picture Elements floor plan with a light or switch in five simple steps.",
     published: "2026-08-15",
+    updated: "2026-08-16",
     author: "HAFloorplan",
     category: "Getting Started",
     tags: ["Home Assistant", "Picture Elements", "Floor Plan", "YAML"],
