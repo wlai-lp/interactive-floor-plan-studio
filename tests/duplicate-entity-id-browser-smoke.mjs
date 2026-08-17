@@ -85,12 +85,31 @@ async function navigate(url, sessionId) {
   const loaded = waitForEvent("Page.loadEventFired", sessionId);
   await send("Page.navigate", { url }, sessionId);
   await loaded;
-  await sleep(900);
 }
 
 async function evaluate(expression, sessionId) {
   const { result } = await send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, sessionId);
   return result.value;
+}
+
+async function waitForEntityState(sessionId, predicate, description, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastState = null;
+  while (Date.now() < deadline) {
+    lastState = await evaluate(`(() => {
+      const input = document.querySelector('#ha-entity-id');
+      if (!input) return null;
+      return {
+        value: input.value,
+        invalid: input.classList.contains('invalid'),
+        ariaInvalid: input.getAttribute('aria-invalid'),
+        errorText: document.querySelector('#entity-error')?.textContent || ''
+      };
+    })()`, sessionId);
+    if (lastState && predicate(lastState)) return lastState;
+    await sleep(100);
+  }
+  throw new Error(`Timed out waiting for ${description}. Last state: ${JSON.stringify(lastState)}`);
 }
 
 const haConfig = (entityId, title) => ({
@@ -133,36 +152,50 @@ try {
   await send("Log.enable", {}, sessionId);
 
   await navigate(`${baseUrl}/editor`, sessionId);
+  await waitForEntityState(sessionId, state => Boolean(state.value !== undefined), "initial editor mount");
   await evaluate(`localStorage.setItem("floor-plan-studio-project", ${JSON.stringify(JSON.stringify(project))}); localStorage.setItem("floor-plan-studio-ha-welcome-dismissed", "true");`, sessionId);
 
   await navigate(`${baseUrl}/editor?device=device-a`, sessionId);
-  const firstState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), errorText:document.querySelector('#entity-error')?.textContent || '' }; })()`, sessionId);
-  if (firstState?.value !== "light.alarm_light" || !firstState?.invalid || firstState?.ariaInvalid !== "true" || !firstState?.errorText?.includes("Duplicate Entity ID")) {
-    throw new Error(`First duplicate device was not visibly invalid: ${JSON.stringify(firstState)}`);
+  const firstState = await waitForEntityState(
+    sessionId,
+    state => state.value === "light.alarm_light" && state.invalid && state.ariaInvalid === "true" && state.errorText.includes("Duplicate Entity ID"),
+    "first duplicate device validation",
+  );
+  if (!firstState.errorText.includes("Each device must use a unique Home Assistant Entity ID")) {
+    throw new Error(`Duplicate guidance was incomplete: ${JSON.stringify(firstState)}`);
   }
 
   await navigate(`${baseUrl}/editor?device=device-b`, sessionId);
-  const secondState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), errorText:document.querySelector('#entity-error')?.textContent || '' }; })()`, sessionId);
-  if (secondState?.value !== "light.alarm_light" || !secondState?.invalid || secondState?.ariaInvalid !== "true" || !secondState?.errorText?.includes("Duplicate Entity ID")) {
-    throw new Error(`Second duplicate device was not visibly invalid: ${JSON.stringify(secondState)}`);
-  }
+  await waitForEntityState(
+    sessionId,
+    state => state.value === "light.alarm_light" && state.invalid && state.ariaInvalid === "true" && state.errorText.includes("Duplicate Entity ID"),
+    "second duplicate device validation",
+  );
 
   const duplicateScreenshot = await send("Page.captureScreenshot", { format: "png" }, sessionId);
   await writeFile("/tmp/duplicate-entity-id.png", Buffer.from(duplicateScreenshot.data, "base64"));
 
-  await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; setter.call(input,'light.room_b'); input.dispatchEvent(new Event('input',{bubbles:true})); })()`, sessionId);
-  await sleep(700);
+  await evaluate(`(() => {
+    const input = document.querySelector('#ha-entity-id');
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(input, 'light.room_b');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`, sessionId);
 
-  const correctedState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), errorText:document.querySelector('#entity-error')?.textContent || '' }; })()`, sessionId);
-  if (correctedState?.value !== "light.room_b" || correctedState?.invalid || correctedState?.ariaInvalid === "true" || correctedState?.errorText?.includes("Duplicate Entity ID")) {
-    throw new Error(`Corrected device did not clear duplicate validation: ${JSON.stringify(correctedState)}`);
-  }
+  await waitForEntityState(
+    sessionId,
+    state => state.value === "light.room_b" && !state.invalid && state.ariaInvalid !== "true" && !state.errorText.includes("Duplicate Entity ID"),
+    "corrected Entity ID validation to clear",
+  );
 
+  // Wait past the editor autosave debounce before reloading another selected device.
+  await sleep(500);
   await navigate(`${baseUrl}/editor?device=device-a`, sessionId);
-  const remainingState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), errorText:document.querySelector('#entity-error')?.textContent || '' }; })()`, sessionId);
-  if (remainingState?.value !== "light.alarm_light" || remainingState?.invalid || remainingState?.ariaInvalid === "true" || remainingState?.errorText?.includes("Duplicate Entity ID")) {
-    throw new Error(`Other device remained invalid after duplicate was resolved: ${JSON.stringify(remainingState)}`);
-  }
+  await waitForEntityState(
+    sessionId,
+    state => state.value === "light.alarm_light" && !state.invalid && state.ariaInvalid !== "true" && !state.errorText.includes("Duplicate Entity ID"),
+    "remaining device validation to clear after correction",
+  );
 
   const browserOutput = [...consoleMessages, ...logMessages, ...exceptions].join("\n");
   if (/uncaught|TypeError|ReferenceError|Hydration failed|hydration mismatch/i.test(browserOutput)) {
