@@ -12,9 +12,10 @@ const approvedScreenshots = [
   "9be60fa4-06fd-40f3-96a6-e8659baa4439",
   "83785b7f-eaad-410a-ab36-50875ad292d5",
   "8f9fcb13-4b50-449c-b977-0e1be9897f09",
+  "c0831798-311b-4ac6-8fc7-0190ec303456",
 ];
 
-test("getting started article uses the Founder-approved screenshots from issue 45", () => {
+test("getting started article uses all Founder-approved screenshots from issue 45", () => {
   for (const assetId of approvedScreenshots) assert.match(article, new RegExp(assetId));
 });
 
@@ -31,7 +32,8 @@ test("getting started article points readers directly to the editor and records 
   assert.match(registry, /updated: "2026-08-16"/);
 });
 
-test("step five remains explicitly identified as an expected-result illustration", () => {
-  assert.match(article, /Expected result/);
-  assert.match(article, /final illustration represents the expected result/);
+test("step five uses the Founder-approved completed Home Assistant dashboard screenshot", () => {
+  assert.match(article, /c0831798-311b-4ac6-8fc7-0190ec303456/);
+  assert.doesNotMatch(article, /Expected result/);
+  assert.doesNotMatch(article, /final illustration represents the expected result/);
 });
