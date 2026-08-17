@@ -3,7 +3,7 @@
 import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import packageJson from "../package.json";
 import { toggleLightForDevice } from "./project-state.mjs";
-import { createDefaultHaDeviceConfig, createDefaultHomeAssistantSettings, inferDeviceOverlay, isRoomControllableDevice, migrateProject, upsertDeviceOverlay, validateHaDeviceConfig, validateProjectV2 } from "./project-schema.mjs";
+import { createDefaultHaDeviceConfig, createDefaultHomeAssistantSettings, findDuplicateHaEntityIds, inferDeviceOverlay, isRoomControllableDevice, migrateProject, upsertDeviceOverlay, validateHaDeviceConfig, validateProjectV2 } from "./project-schema.mjs";
 import "./editor-actions-inspector.css";
 
 type Point = { x: number; y: number };
@@ -123,8 +123,12 @@ export default function Home() {
   const welcomeDevice = project.devices.find(device => device.type === "light");
   const currentBounds = current ? roomBounds(current.points) : null;
   const currentHaErrors = currentDevice?.ha ? validateHaDeviceConfig(currentDevice.ha, "Home Assistant") : [];
+  const duplicateEntityIds = useMemo(() => new Set(findDuplicateHaEntityIds(project)), [project]);
   const currentOverlay = currentDevice?.ha?.entityId ? project.homeAssistant.overlays.find(o => o.entityId === currentDevice.ha?.entityId) : undefined;
-  const entityError = currentHaErrors.find(error => /entity/i.test(error));
+  const entityFormatError = currentHaErrors.find(error => /entity/i.test(error));
+  const currentEntityId = currentDevice?.ha?.entityId?.trim() || "";
+  const duplicateEntityError = !entityFormatError && Boolean(currentEntityId) && duplicateEntityIds.has(currentEntityId) ? "Duplicate Entity ID" : "";
+  const entityError = entityFormatError || duplicateEntityError;
   const hasHaExport = project.devices.some(device => Boolean(device.ha?.entityId));
   const entitySetupDevice = project.devices.find(device => !device.ha?.entityId) || project.devices[0];
 
@@ -228,9 +232,26 @@ export default function Home() {
       const oldDevice = p.devices.find(d=>d.id===currentDevice.id)!;
       const base = oldDevice.ha || createDefaultHaDeviceConfig(oldDevice.type) as HaDeviceConfig;
       const nextHa = {...base,...patch} as HaDeviceConfig;
-      const overlays = oldDevice.ha?.entityId && oldDevice.ha.entityId !== nextHa.entityId ? p.homeAssistant.overlays.map(o=>o.entityId===oldDevice.ha?.entityId?{...o,entityId:nextHa.entityId}:o) : p.homeAssistant.overlays;
-      const next={...p,devices:p.devices.map(d=>d.id===currentDevice.id?{...d,ha:nextHa}:d),homeAssistant:{...p.homeAssistant,overlays}};
-      return inferDeviceOverlay(next,currentDevice.id) as Project;
+      const nextDevices = p.devices.map(d=>d.id===currentDevice.id?{...d,ha:nextHa}:d);
+      const nextEntityId = nextHa.entityId.trim();
+      const duplicateEntityId = Boolean(nextEntityId) && nextDevices.some(d=>d.id!==currentDevice.id&&d.ha?.entityId?.trim()===nextEntityId);
+      if (duplicateEntityId) return {...p,devices:nextDevices};
+
+      const oldEntityId = oldDevice.ha?.entityId?.trim() || "";
+      const oldEntityStillUsed = Boolean(oldEntityId) && nextDevices.some(d=>d.id!==currentDevice.id&&d.ha?.entityId?.trim()===oldEntityId);
+      let overlays = p.homeAssistant.overlays;
+      if (oldEntityId && oldEntityId !== nextEntityId && !oldEntityStillUsed) {
+        overlays = overlays.map(o=>o.entityId===oldEntityId?{...o,entityId:nextEntityId}:o);
+      }
+      const usedEntityIds = new Set(nextDevices.map(d=>d.ha?.entityId?.trim()).filter(Boolean));
+      overlays = overlays.filter(o=>usedEntityIds.has(o.entityId));
+      let next={...p,devices:nextDevices,homeAssistant:{...p.homeAssistant,overlays}} as Project;
+      const duplicates = new Set(findDuplicateHaEntityIds(next));
+      for (const device of next.devices) {
+        const entityId = device.ha?.entityId?.trim() || "";
+        if (entityId && !duplicates.has(entityId)) next = inferDeviceOverlay(next,device.id) as Project;
+      }
+      return next;
     });
   };
   const updateAction = (key: "tapAction"|"holdAction"|"doubleTapAction", action: HaActionName) => {
@@ -369,7 +390,7 @@ export default function Home() {
           <div className="inspector-section primary-settings">
             <div className="section-heading">Device</div>
             <label>Alias / title<input placeholder="Alarm light" value={currentDevice.ha?.title||""} onChange={e=>updateDeviceHa({title:e.target.value})}/></label>
-            <label>Entity ID<input id="ha-entity-id" className={entityError?"invalid":""} aria-invalid={Boolean(entityError)} aria-describedby={entityError?"entity-error":"entity-help"} placeholder={currentDevice.type==="light"?"light.alarm_light":currentDevice.type==="plug"?"switch.floor_lamp":"sensor.room_temperature"} value={currentDevice.ha?.entityId||""} onChange={e=>updateDeviceHa({entityId:e.target.value.trim()})}/><small id="entity-help">Example: <code>{currentDevice.type==="plug"?"switch.floor_lamp":"light.alarm_light"}</code></small>{entityError&&<small id="entity-error" className="field-error" role="alert">{entityError}</small>}</label>
+            <label>Entity ID<input id="ha-entity-id" className={entityError?"invalid":""} aria-invalid={Boolean(entityError)} aria-describedby={entityError?"entity-error":"entity-help"} placeholder={currentDevice.type==="light"?"light.alarm_light":currentDevice.type==="plug"?"switch.floor_lamp":"sensor.room_temperature"} value={currentDevice.ha?.entityId||""} onChange={e=>updateDeviceHa({entityId:e.target.value.trim()})}/><small id="entity-help">Example: <code>{currentDevice.type==="plug"?"switch.floor_lamp":"light.alarm_light"}</code></small>{entityError&&<small id="entity-error" className="field-error" role="alert">{duplicateEntityError ? "Duplicate Entity ID — Each device must use a unique Home Assistant Entity ID." : entityError}</small>}</label>
             <div className="field"><span>Device type</span><b>{currentDevice.type}</b></div>
             <label>Display mode<select className="styled-select" value={currentDevice.ha?.mode || (isRoomControllableDevice(currentDevice.type)?"icon-and-label":"state-label")} onChange={e=>updateDeviceHa({mode:e.target.value as HaDeviceConfig["mode"]})}><option value="state-icon">State icon</option><option value="state-label">State label</option><option value="icon-and-label">Icon + label</option></select></label>
             <label>Tap action<select className="styled-select" value={currentDevice.ha?.tapAction.action || (isRoomControllableDevice(currentDevice.type)?"toggle":"more-info")} onChange={e=>updateAction("tapAction",e.target.value as HaActionName)}>{ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}</select></label>
@@ -401,7 +422,7 @@ export default function Home() {
             <div className="disclosure-body"><div className="field"><span>Internal device ID</span><code>{currentDevice.id}</code></div><div className="field"><span>Exact position</span><b>{currentDevice.x}, {currentDevice.y}</b></div><div className="privacy-notice">Entity IDs are saved as project metadata. Tokens and credentials are never requested or exported.</div></div>
           </details>
 
-          {currentHaErrors.filter(error=>error!==entityError).length>0&&<div className="validation-summary" role="status"><b>Home Assistant validation</b>{currentHaErrors.filter(error=>error!==entityError).map(error=><p key={error}>{error}</p>)}</div>}
+          {currentHaErrors.filter(error=>error!==entityFormatError).length>0&&<div className="validation-summary" role="status"><b>Home Assistant validation</b>{currentHaErrors.filter(error=>error!==entityFormatError).map(error=><p key={error}>{error}</p>)}</div>}
           <div className="danger-zone"><div><b>Danger zone</b><p>Deleting removes the device and its associated overlay mapping.</p></div><button className="danger-button" onClick={requestDeleteSelection}>Delete device</button></div>
         </> : current ? <>
           <div className="edit-callout"><b>Edit shape</b><p>Drag the room to move it. Use square handles to resize or round handles to adjust individual vertices.</p></div>
