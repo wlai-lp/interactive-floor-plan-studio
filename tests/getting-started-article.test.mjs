@@ -15,7 +15,8 @@ const approvedScreenshots = [
   "c0831798-311b-4ac6-8fc7-0190ec303456",
 ];
 
-test("getting started article uses all Founder-approved screenshots from issue 45", () => {
+test("getting started article uses all seven Founder-approved screenshots from issue 45", () => {
+  assert.equal(approvedScreenshots.length, 7);
   for (const assetId of approvedScreenshots) assert.match(article, new RegExp(assetId));
 });
 
