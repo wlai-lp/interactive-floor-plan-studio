@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
 import Link from "next/link";
 import "../blog.css";
 
@@ -7,12 +6,6 @@ export const metadata: Metadata = {
   title: "Getting Started with HAFloorplan",
   description: "Create a working Home Assistant Picture Elements floor plan with HAFloorplan in five steps.",
 };
-
-const Window = ({ title, children, caption }: { title: string; children: ReactNode; caption: string }) => <figure className="tutorial-visual">
-  <div className="visual-bar"><span className="visual-dot"/><span className="visual-dot"/><span className="visual-dot"/><strong>{title}</strong></div>
-  <div className="visual-body">{children}</div>
-  <figcaption>{caption}</figcaption>
-</figure>;
 
 const Screenshot = ({ src, alt, caption, width, height }: { src: string; alt: string; caption: string; width: number; height: number }) => <figure className="tutorial-screenshot">
   <a href={src} target="_blank" rel="noreferrer" aria-label={`${alt} — open full-size screenshot`}>
@@ -102,14 +95,13 @@ export default function GettingStartedPage() {
     <section className="step">
       <h2>5. Verify the rendered floor plan</h2>
       <p>After saving, Home Assistant should render the floor plan as a Picture Elements card. The Light or Switch appears at the location you placed it in HAFloorplan. Tap the entity control and verify that it operates the Home Assistant entity you mapped.</p>
-      <Window title="Expected result" caption="Success: the floor plan renders in the Panel view and the mapped entity appears at the configured location. This final illustration represents the expected result; steps 1–4 use the verified screenshots from issue #45.">
-        <div className="ui-panel">
-          <div className="floorplan-demo">
-            <span className="room-label">Living room</span>
-            <span className="focus-target entity-node" aria-label="Living room light entity">💡</span>
-          </div>
-        </div>
-      </Window>
+      <Screenshot
+        src="https://github.com/user-attachments/assets/c0831798-311b-4ac6-8fc7-0190ec303456"
+        alt="Home Assistant dashboard showing the completed HAFloorplan Picture Elements floor-plan card"
+        width={1512}
+        height={1229}
+        caption="Success: the generated floor plan is rendered in Home Assistant with the mapped device controls positioned on the floor plan."
+      />
     </section>
 
     <section className="success-box">
