@@ -13,6 +13,7 @@ const chromeProcess = spawn(chrome, [
   "--headless=new",
   "--no-sandbox",
   "--disable-gpu",
+  "--window-size=1536,1000",
   "--remote-debugging-port=9225",
   `--user-data-dir=${userDataDir}`,
   "about:blank",
@@ -135,14 +136,14 @@ try {
   await evaluate(`localStorage.setItem("floor-plan-studio-project", ${JSON.stringify(JSON.stringify(project))}); localStorage.setItem("floor-plan-studio-ha-welcome-dismissed", "true");`, sessionId);
 
   await navigate(`${baseUrl}/editor?device=device-a`, sessionId);
-  const firstState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), text:document.body.innerText }; })()`, sessionId);
-  if (firstState?.value !== "light.alarm_light" || !firstState?.invalid || firstState?.ariaInvalid !== "true" || !firstState?.text?.includes("Duplicate Entity ID")) {
+  const firstState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), errorText:document.querySelector('#entity-error')?.textContent || '' }; })()`, sessionId);
+  if (firstState?.value !== "light.alarm_light" || !firstState?.invalid || firstState?.ariaInvalid !== "true" || !firstState?.errorText?.includes("Duplicate Entity ID")) {
     throw new Error(`First duplicate device was not visibly invalid: ${JSON.stringify(firstState)}`);
   }
 
   await navigate(`${baseUrl}/editor?device=device-b`, sessionId);
-  const secondState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), text:document.body.innerText }; })()`, sessionId);
-  if (secondState?.value !== "light.alarm_light" || !secondState?.invalid || secondState?.ariaInvalid !== "true" || !secondState?.text?.includes("Duplicate Entity ID")) {
+  const secondState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), errorText:document.querySelector('#entity-error')?.textContent || '' }; })()`, sessionId);
+  if (secondState?.value !== "light.alarm_light" || !secondState?.invalid || secondState?.ariaInvalid !== "true" || !secondState?.errorText?.includes("Duplicate Entity ID")) {
     throw new Error(`Second duplicate device was not visibly invalid: ${JSON.stringify(secondState)}`);
   }
 
@@ -152,14 +153,14 @@ try {
   await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; setter.call(input,'light.room_b'); input.dispatchEvent(new Event('input',{bubbles:true})); })()`, sessionId);
   await sleep(700);
 
-  const correctedState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), text:document.body.innerText }; })()`, sessionId);
-  if (correctedState?.value !== "light.room_b" || correctedState?.invalid || correctedState?.ariaInvalid === "true" || correctedState?.text?.includes("Duplicate Entity ID")) {
+  const correctedState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), errorText:document.querySelector('#entity-error')?.textContent || '' }; })()`, sessionId);
+  if (correctedState?.value !== "light.room_b" || correctedState?.invalid || correctedState?.ariaInvalid === "true" || correctedState?.errorText?.includes("Duplicate Entity ID")) {
     throw new Error(`Corrected device did not clear duplicate validation: ${JSON.stringify(correctedState)}`);
   }
 
   await navigate(`${baseUrl}/editor?device=device-a`, sessionId);
-  const remainingState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), text:document.body.innerText }; })()`, sessionId);
-  if (remainingState?.value !== "light.alarm_light" || remainingState?.invalid || remainingState?.ariaInvalid === "true" || remainingState?.text?.includes("Duplicate Entity ID")) {
+  const remainingState = await evaluate(`(() => { const input=document.querySelector('#ha-entity-id'); return { value:input?.value, invalid:input?.classList.contains('invalid'), ariaInvalid:input?.getAttribute('aria-invalid'), errorText:document.querySelector('#entity-error')?.textContent || '' }; })()`, sessionId);
+  if (remainingState?.value !== "light.alarm_light" || remainingState?.invalid || remainingState?.ariaInvalid === "true" || remainingState?.errorText?.includes("Duplicate Entity ID")) {
     throw new Error(`Other device remained invalid after duplicate was resolved: ${JSON.stringify(remainingState)}`);
   }
 
