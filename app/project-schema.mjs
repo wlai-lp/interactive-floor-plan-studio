@@ -107,6 +107,16 @@ export function containingRoomIds(project, device) {
   return (project.rooms || []).filter(room => pointInRoom(device, room)).map(room => room.id);
 }
 
+export function findDuplicateHaEntityIds(project) {
+  const counts = new Map();
+  for (const device of project?.devices || []) {
+    const entityId = typeof device?.ha?.entityId === "string" ? device.ha.entityId.trim() : "";
+    if (!ENTITY_ID.test(entityId)) continue;
+    counts.set(entityId, (counts.get(entityId) || 0) + 1);
+  }
+  return [...counts.entries()].filter(([, count]) => count > 1).map(([entityId]) => entityId).sort();
+}
+
 export function inferDeviceOverlay(project, deviceId) {
   const device = project.devices.find(item => item.id === deviceId);
   if (!device || !isRoomControllableDevice(device.type)) return project;
@@ -159,7 +169,7 @@ export function validateHaDeviceConfig(config, path = "device.ha") {
   return errors;
 }
 
-export function validateProjectV2(project) {
+export function validateProjectV2(project, { allowDuplicateEntityIds = false } = {}) {
   const errors = [];
   if (!isRecord(project)) return ["project must be an object"];
   if (project.schemaVersion !== PROJECT_SCHEMA_VERSION) errors.push(`schemaVersion must be ${PROJECT_SCHEMA_VERSION}`);
@@ -191,6 +201,14 @@ export function validateProjectV2(project) {
     finite(device.y, `${path}.y`, errors);
     if (device.type !== "light" && device.type !== "sensor" && device.type !== "plug") errors.push(`${path}.type is unsupported`);
     errors.push(...validateHaDeviceConfig(device.ha, `${path}.ha`));
+  }
+
+  if (!allowDuplicateEntityIds) {
+    const duplicateEntityIds = new Set(findDuplicateHaEntityIds(project));
+    for (const [index, device] of (Array.isArray(project.devices) ? project.devices : []).entries()) {
+      const entityId = typeof device?.ha?.entityId === "string" ? device.ha.entityId.trim() : "";
+      if (duplicateEntityIds.has(entityId)) errors.push(`devices[${index}].ha.entityId duplicates another device`);
+    }
   }
 
   if (!isRecord(project.homeAssistant) || project.homeAssistant.background !== "rooms-and-uploaded-image" || !Array.isArray(project.homeAssistant.overlays)) {
@@ -228,7 +246,7 @@ export function migrateProject(raw) {
       overlays: Array.isArray(rawHa.overlays) ? rawHa.overlays.map(normalizeOverlay).filter(Boolean) : [],
     },
   };
-  const errors = validateProjectV2(project);
+  const errors = validateProjectV2(project, { allowDuplicateEntityIds: true });
   if (errors.length) throw new Error(errors.join("\n"));
   return { project, migrated };
 }
