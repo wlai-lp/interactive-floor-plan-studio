@@ -14,7 +14,7 @@ test("About page preserves approved product positioning and CTA", () => {
   assert.match(page, /visual authoring layer for Home Assistant Picture Elements/i);
   assert.match(page, /Visual editor in\. Native Picture Elements out\./);
   assert.match(page, /href="\/editor">Open Editor/);
-  assert.match(page, /not a replacement for Home Assistant/i);
+  assert.match(page, /HAFloorplan is not[\s\S]*A replacement for Home Assistant/i);
   assert.match(page, /general-purpose CAD/i);
   assert.match(page, /No required custom card/);
 });
