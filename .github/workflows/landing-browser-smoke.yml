@@ -35,6 +35,9 @@ jobs:
       - name: Run duplicate Entity ID regression tests
         run: node --test tests/duplicate-entity-id.test.mjs
 
+      - name: Run About page regression tests
+        run: node --test tests/about-page.test.mjs
+
       - name: Start development server
         run: |
           npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/hafloorplan-vite.log 2>&1 &
@@ -116,6 +119,15 @@ jobs:
           fi
           CHROME="$CHROME" BASE_URL="http://127.0.0.1:4173" node tests/duplicate-entity-id-browser-smoke.mjs
 
+      - name: Verify About page in headless Chrome
+        run: |
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$CHROME" ]; then
+            echo "No Chrome/Chromium executable found on runner."
+            exit 1
+          fi
+          CHROME="$CHROME" BASE_URL="http://127.0.0.1:4173" node tests/about-browser-smoke.mjs
+
       - name: Capture landing screenshot
         if: always()
         run: |
@@ -138,5 +150,7 @@ jobs:
             /tmp/ha-export-browser.log
             /tmp/duplicate-entity-id.png
             /tmp/duplicate-entity-id-browser.log
+            /tmp/about.png
+            /tmp/about-browser.log
             /tmp/hafloorplan-vite.log
           if-no-files-found: ignore
