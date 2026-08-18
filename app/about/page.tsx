@@ -52,12 +52,13 @@ export default function AboutPage() {
       <section className="about-section marketing-container about-story" aria-labelledby="why-title">
         <div>
           <span className="about-kicker">WHY IT EXISTS</span>
-          <h2 id="why-title">Because people think about a home spatially.</h2>
+          <h2 id="why-title">Picture Elements is powerful. Building one should not require a weekend.</h2>
         </div>
         <div className="about-story-copy">
-          <p>Home Assistant already provides a powerful native Picture Elements runtime. It can bind controls to real entities, position them over an image, and react to device state.</p>
-          <p>The difficult part is authoring and maintaining the experience. Every home is different, every device sits somewhere different, and a useful floor plan can mean repeated work with background assets, percentages, entity IDs, conditional visuals, and YAML.</p>
-          <p>People do not naturally think, “entity number 37.” They think about the kitchen, the bedroom, the lamp beside the couch, and the switch by the door. HAFloorplan brings that spatial context to Home Assistant.</p>
+          <p>Home Assistant includes the Picture Elements card out of the box. It is one of the most flexible ways to create a floor-plan dashboard that reflects the way your home actually looks and behaves.</p>
+          <p>But creating a floor plan tailored to your home usually means solving several different problems at once: crafting the floor-plan layout, mapping the right Home Assistant entities, positioning each device, defining state-driven room behavior, and building the YAML that ties all of it together.</p>
+          <p>Even for a seasoned Home Assistant user with the right technical know-how, the initial setup can easily consume a weekend. For everyone else, the bar is even higher. That complexity keeps many people from ever trying one of Home Assistant's most compelling built-in dashboard capabilities.</p>
+          <p>HAFloorplan exists to lower that bar. The goal is to let anyone get a taste of what Picture Elements can do: create a simple floor plan that represents their home, place and connect devices visually, and generate the native Home Assistant configuration needed to bring it to life.</p>
           <p className="about-pullquote">Visual editor in. Native Picture Elements out.</p>
         </div>
       </section>
