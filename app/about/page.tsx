@@ -106,6 +106,17 @@ export default function AboutPage() {
         </div>
       </section>
 
+      <section className="about-section marketing-container about-story" aria-labelledby="developer-title">
+        <div>
+          <span className="about-kicker">THE DEVELOPER</span>
+          <h2 id="developer-title">Built by a Home Assistant user, for Home Assistant users.</h2>
+        </div>
+        <div className="about-story-copy">
+          <p>HAFloorplan started from a simple frustration: creating an interactive floor-plan dashboard in Home Assistant required too much manual configuration. I built HAFloorplan to explore whether that process could be made visual, simple, and accessible without requiring users to become YAML or frontend experts.</p>
+          <p>Along the way, the project has also become an exploration of modern AI-assisted software development—from product design and architecture to testing, deployment, and iteration.</p>
+        </div>
+      </section>
+
       <section className="about-section marketing-container" aria-labelledby="thanks-title">
         <header className="about-section-heading">
           <span className="about-kicker">ACKNOWLEDGEMENTS</span>
