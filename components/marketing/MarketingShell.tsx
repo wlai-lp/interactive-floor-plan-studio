@@ -44,6 +44,7 @@ export function MarketingFooter() {
           <h2>Project</h2>
           <Link href="/about">About</Link>
           <a href="https://github.com/hafloorplan/hafloorplan" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/hafloorplan/hafloorplan/discussions" target="_blank" rel="noreferrer">Discussions</a>
           <a href="https://github.com/hafloorplan/hafloorplan/issues" target="_blank" rel="noreferrer">Report a bug</a>
         </div>
       </div>
