@@ -19,6 +19,12 @@ test("About page preserves approved product positioning and CTA", () => {
   assert.match(page, /No required custom card/);
 });
 
+test("About page includes the developer story", () => {
+  assert.match(page, /Built by a Home Assistant user, for Home Assistant users\./);
+  assert.match(page, /creating an interactive floor-plan dashboard in Home Assistant required too much manual configuration/i);
+  assert.match(page, /modern AI-assisted software development/i);
+});
+
 test("About page contains required acknowledgements and independence language", () => {
   assert.match(page, /Home Assistant/);
   assert.match(page, /Floorplanner/);
