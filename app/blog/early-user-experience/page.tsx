@@ -40,7 +40,7 @@ export default function EarlyUserExperiencePage() {
       <p>After watching the short demo on the landing page, drawing rooms felt pretty intuitive. Once I understood the basic interaction, I was able to recreate my whole floor relatively quickly.</p>
       <p>For ease of use, I would give the current experience a <strong>B</strong>.</p>
       <Screenshot
-        src="https://github.com/user-attachments/assets/4059f2fb-f39e-484c-8301-724b0bf3d74a"
+        src="https://github.com/user-attachments/assets/a4d4487b-61e1-4345-9c86-99840a5852df"
         alt="HAFloorplan Semantic Editor showing the user's recreated floor with labeled rooms and placed light entities"
         width={832}
         height={753}
