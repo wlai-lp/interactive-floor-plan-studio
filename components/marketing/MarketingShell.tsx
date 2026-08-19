@@ -43,8 +43,8 @@ export function MarketingFooter() {
         <div>
           <h2>Project</h2>
           <Link href="/about">About</Link>
-          <a href="https://github.com/wlai-lp/interactive-floor-plan-studio" target="_blank" rel="noreferrer">GitHub</a>
-          <a href="https://github.com/wlai-lp/interactive-floor-plan-studio/issues" target="_blank" rel="noreferrer">Report a bug</a>
+          <a href="https://github.com/hafloorplan/hafloorplan" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/hafloorplan/hafloorplan/issues" target="_blank" rel="noreferrer">Report a bug</a>
         </div>
       </div>
       <div className="marketing-container marketing-footer-bottom">
