@@ -148,12 +148,6 @@ export default function AboutPage() {
         </div>
         <div>
           <p>HAFloorplan is an independent project and is not affiliated with or endorsed by Home Assistant or Nabu Casa.</p>
-          <p>The current editor is local-first and can be used without an account. HAFloorplan does not need your Home Assistant credentials or access token to generate the MVP Picture Elements configuration.</p>
-          <p>As the project evolves, public information should remain clear about what is available today versus what is still being explored. Sensitive infrastructure details and unapproved business-model plans do not belong on this page.</p>
-          <p className="about-project-links">
-            <a href="https://github.com/wlai-lp/interactive-floor-plan-studio" target="_blank" rel="noreferrer">View the project on GitHub ↗</a>
-            <a href="https://github.com/wlai-lp/interactive-floor-plan-studio/issues" target="_blank" rel="noreferrer">Report a bug or suggest an improvement ↗</a>
-          </p>
         </div>
       </section>
 
