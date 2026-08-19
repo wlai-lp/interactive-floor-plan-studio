@@ -7,6 +7,13 @@ export const metadata: Metadata = {
   description: "An early HAFloorplan user shares a candid first experience: starting from no floor-plan dashboard, building a floor, exporting working YAML, and what still needs improvement.",
 };
 
+const Screenshot = ({ src, alt, caption, width, height }: { src: string; alt: string; caption: string; width: number; height: number }) => <figure className="tutorial-screenshot">
+  <a href={src} target="_blank" rel="noreferrer" aria-label={`${alt} — open full-size screenshot`}>
+    <img src={src} alt={alt} width={width} height={height} loading="lazy" />
+  </a>
+  <figcaption>{caption}</figcaption>
+</figure>;
+
 export default function EarlyUserExperiencePage() {
   return <article className="article-page">
     <Link className="blog-back" href="/blog">← All articles</Link>
@@ -32,6 +39,13 @@ export default function EarlyUserExperiencePage() {
       <h2>The short demo was enough to get me started</h2>
       <p>After watching the short demo on the landing page, drawing rooms felt pretty intuitive. Once I understood the basic interaction, I was able to recreate my whole floor relatively quickly.</p>
       <p>For ease of use, I would give the current experience a <strong>B</strong>.</p>
+      <Screenshot
+        src="https://github.com/user-attachments/assets/4059f2fb-f39e-484c-8301-724b0bf3d74a"
+        alt="HAFloorplan Semantic Editor showing the user's recreated floor with labeled rooms and placed light entities"
+        width={832}
+        height={753}
+        caption="The floor recreated in HAFloorplan before export to Home Assistant."
+      />
     </section>
 
     <section className="step">
@@ -44,6 +58,13 @@ export default function EarlyUserExperiencePage() {
       <h2>The generated YAML worked without an issue</h2>
       <p>The strongest part of the experience was the handoff to Home Assistant. The generated YAML worked without an issue.</p>
       <p>I would give the Home Assistant side of the experience a <strong>B</strong>. I was able to create the floor plan, add the entities, generate the configuration, and get the result into Home Assistant.</p>
+      <Screenshot
+        src="https://github.com/user-attachments/assets/40a0f81d-918e-4d6b-a49d-8c4fb48defd6"
+        alt="Home Assistant dashboard showing the exported floor plan generated from the user's HAFloorplan project"
+        width={1734}
+        height={1285}
+        caption="The same floor rendered as the final Home Assistant dashboard after using the generated configuration."
+      />
     </section>
 
     <section className="step">
