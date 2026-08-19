@@ -14,6 +14,16 @@ export type BlogArticle = {
 
 export const blogArticles: BlogArticle[] = [
   {
+    slug: "early-user-experience",
+    title: "I Built My Home Assistant Floor Plan with HAFloorplan — Here’s What Worked and What Didn’t",
+    description: "An early HAFloorplan user shares what felt easy, what worked in Home Assistant, and what still needs improvement.",
+    published: "2026-08-19",
+    author: "Early HAFloorplan User",
+    category: "User Stories",
+    tags: ["Home Assistant", "Floor Plan", "User Feedback", "Picture Elements"],
+    status: "published",
+  },
+  {
     slug: "getting-started",
     title: "Getting Started with HAFloorplan",
     description: "Create a working Home Assistant Picture Elements floor plan with a light or switch in five simple steps.",
