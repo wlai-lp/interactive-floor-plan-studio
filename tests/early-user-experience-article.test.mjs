@@ -20,5 +20,8 @@ test("early user experience article is published and keeps the interview ratings
   assert.match(article, /Snap rooms together/i);
   assert.match(article, /Display the room name/i);
   assert.match(article, /generated YAML worked without an issue/i);
+  assert.match(article, /not using any Home Assistant floor-plan solution/i);
+  assert.match(article, /C to a B/i);
+  assert.match(article, /users who want to build a floor plan but do not know how to start/i);
   assert.match(article, /export const metadata/);
 });
