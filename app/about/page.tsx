@@ -137,6 +137,7 @@ export default function AboutPage() {
           <article className="about-card">
             <h3>Northflank</h3>
             <p>Northflank provides hosting and deployment infrastructure used to operate the public HAFloorplan application.</p>
+            <a href="https://northflank.com/" target="_blank" rel="noreferrer">Visit Northflank ↗</a>
           </article>
         </div>
       </section>
